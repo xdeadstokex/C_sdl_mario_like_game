@@ -111,6 +111,21 @@ int control(){
     // GOD MODE TOGGLE
     if(kb.key_g.click) player.god_mode = !player.god_mode;
 
+    // K = reload world file mid-game (preserves player position)
+    if(kb.key_k.click && game_state == STATE_PLAY){
+        printf("[control] reloading world...\n");
+        reload_world();
+    }
+
+    // I/O = zoom in/out, snap camera instantly to avoid visual lag
+    if(kb.key_i.click || kb.key_o.click){
+        if(kb.key_i.click){ cfg.px_per_m += 10.0; if(cfg.px_per_m > 300.0) cfg.px_per_m = 300.0; }
+        if(kb.key_o.click){ cfg.px_per_m -= 10.0; if(cfg.px_per_m <  20.0) cfg.px_per_m =  20.0; }
+        double pm=cfg.px_per_m, sw=cfg.screen_w, sh=cfg.screen_h;
+        camera.x_px = player.base.x*pm - sw/2.0;
+        camera.y_px = player.base.y*pm - sh/2.0;
+    }
+
     return 1;
 }
 
