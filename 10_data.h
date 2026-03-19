@@ -12,7 +12,10 @@
 //###############################################
 #define TERRAIN_COUNT  240
 #define COIN_COUNT     30
-#define ITEM_COUNT     2
+
+#define ITEM_COUNT     3
+#define CHEST_COUNT    10 //chest nums
+
 #define ENEMY_COUNT    7
 #define DECOR_COUNT    64
 
@@ -49,6 +52,7 @@ struct coin_data coins[COIN_COUNT];
 struct item_data items[ITEM_COUNT];
 struct enemy_data enemies[ENEMY_COUNT];
 struct decor_data decors[DECOR_COUNT];
+struct chest_data chests[CHEST_COUNT];
 
 int game_state;
 int menu_sub_state;
@@ -57,6 +61,7 @@ int enemy_count_actual;
 int coin_count_actual;
 int item_count_actual;
 int decor_count_actual;
+int chest_count_actual;
 
 font_data font;
 

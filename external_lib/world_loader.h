@@ -42,6 +42,9 @@ typedef struct {
     double*              spawn_x;
     double*              spawn_y;
     int                  spawn_set;
+    struct chest_data* chests;
+    int* chest_count;
+    int chest_max;
 
     struct decor_data*   decors;
     int*                 decor_count;
@@ -54,6 +57,7 @@ typedef struct {
     int v_edge_grab_slide, v_invincible_frames;
     int v_player_w, v_player_h, v_max_vx, v_max_vy;
     int p_present;  // at least one P tag seen
+
 } wl_ctx;
 
 //###############################################
@@ -179,6 +183,21 @@ static void load_tag_I(wl_ctx* ctx, const char* line){
     ctx->items[i].y=ctx->cfg->world_h - y;  // flip
     ctx->items[i].active=1; ctx->items[i].respawn_timer=0;
     (*ctx->item_count)++;
+}
+
+// B  x  y  item_type (top-left in meters)
+static void load_tag_B(wl_ctx* ctx, const char* line){
+    wl_check_cap(ctx,*ctx->chest_count,ctx->chest_max,"B",line);
+    double x, y; int type;
+    int n=sscanf(line+1,"%lf %lf %d",&x,&y,&type);
+    wl_check_fields(ctx,n,3,"B",line);
+    int i=*ctx->chest_count;
+    ctx->chests[i].x = x + 0.3; // w/2
+    ctx->chests[i].y = ctx->cfg->world_h - y - 0.2; // Y-flip, h/2
+    ctx->chests[i].state = 0;
+    ctx->chests[i].item_type = type;
+    ctx->chests[i].show_key = 0;
+    (*ctx->chest_count)++;
 }
 
 // P  x  y  (player top-left in meters)
@@ -347,6 +366,7 @@ static void load_world(
     struct coin_data*    coins,    int* cc, int cm,
     struct item_data*    items,    int* ic, int im,
     struct decor_data*   decors,   int* dc, int dm,
+    struct chest_data* chests_arr, int* chest_c, int chest_m,
     double* spawn_x, double* spawn_y
 ){
     FILE* f=fopen(filepath,"r");
@@ -358,6 +378,7 @@ static void load_world(
     }
     *cfg=game_config_default();
     *tc=0; *ec=0; *cc=0; *ic=0; *dc=0;
+    *chest_c = 0;
     wl_ctx ctx={0};
     ctx.filepath=filepath; ctx.cfg=cfg;
     ctx.terrains=terrains; ctx.terrain_count=tc; ctx.terrain_max=tm;
@@ -367,6 +388,10 @@ static void load_world(
     ctx.decors=decors;     ctx.decor_count=dc;    ctx.decor_max=dm;
     ctx.spawn_x=spawn_x;   ctx.spawn_y=spawn_y;
     ctx.spawn_set=preserve_player;
+
+    ctx.chests = chests_arr;
+    ctx.chest_count = chest_c;
+    ctx.chest_max = chest_m;
 
     char line[512];
     while(fgets(line,sizeof(line),f)){
@@ -381,6 +406,7 @@ static void load_world(
             case 'E': load_tag_E(&ctx,line); break;
             case 'C': load_tag_C(&ctx,line); break;
             case 'I': load_tag_I(&ctx,line); break;
+            case 'B': load_tag_B(&ctx,line); break;
             case 'P': load_tag_P(&ctx,line); break;
             case 'D': load_tag_D(&ctx,line); break;
             default:  wl_error(&ctx,"unknown tag (V T E C I P D)",line);

@@ -20,6 +20,7 @@ void process(){
     process_terrain_timers();
     process_coins();
     process_items();
+    process_chests();
     process_enemies();
     process_camera();
     process_win_check();

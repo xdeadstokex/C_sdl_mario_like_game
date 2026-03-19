@@ -1,0 +1,5 @@
+# Loại bỏ tất cả các file thực thi
+*.exe
+
+# Loại bỏ tất cả các thư viện liên kết động
+*.dll

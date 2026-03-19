@@ -13,6 +13,7 @@ void render(){
     draw_background();
     draw_terrain();
     draw_coins();
+    draw_chests();
     draw_items();
     draw_decors();
     draw_enemies();

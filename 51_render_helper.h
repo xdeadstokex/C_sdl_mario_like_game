@@ -97,7 +97,9 @@ void draw_player(){
     if(player.invincible>0&&(player.invincible/3)%2==0) return;
     unsigned int body=0x4169E1FF;
     if(player.edge_grab)          body=0x00CED1FF;
-    if(player.jump_boost_timer>0) body=0xFFAA00FF;
+    if(player.jump_boost_timer>0) body=0xFFAA00FF;//vàng
+    else if(player.speed_boost_timer > 0) body=0x00FFCCFF;//xanh ngọc
+
     draw_rect_centered(&window,spx,spy,pw,ph,body);
     draw_rect_centered(&window,spx,spy-ph/2-head_h/2,head_w,head_h,0xFFD700FF);
     int ex=(player.last_move_dir>0)?spx+eye_s:spx-eye_s;
@@ -168,9 +170,17 @@ void draw_items(){
         int isx=SX(items[i].x), isy=SY(items[i].y);
         if(isy<-20||isy>(int)cfg.screen_h+20) continue;
         int ia=SP(0.22), ib=SP(0.08), ic2=SP(0.14), id=SP(0.06);
-        draw_rect_centered(&window,isx,isy,ia,ib,0xFFFF00FF);
-        draw_rect_centered(&window,isx,isy,ib,ia,0xFFFF00FF);
-        draw_rect_centered(&window,isx,isy,ic2,ic2,0xFFAA00FF);
+        if(items[i].type == 1){
+            draw_rect_centered(&window,isx,isy,ia,ib,0x00FFFFFF);
+            draw_rect_centered(&window,isx,isy,ib,ia,0x00FFFFFF);
+            draw_rect_centered(&window,isx,isy,ic2,ic2,0x00AAFFFF);
+        }
+        else{
+            draw_rect_centered(&window,isx,isy,ia,ib,0xFFFF00FF);
+            draw_rect_centered(&window,isx,isy,ib,ia,0xFFFF00FF);
+            draw_rect_centered(&window,isx,isy,ic2,ic2,0xFFAA00FF);
+        }
+        
         draw_rect_centered(&window,isx,isy,id,id,0xFFFFFFFF);
     }
 }
@@ -248,11 +258,17 @@ void draw_hud(){
     draw_rect(&window, bx, by, bw, bh, 0x333333FF);
     draw_rect(&window, bx, by, (int)(bw*h_m/cfg.world_h), bh, 0x00FF88FF);
     draw_rect(&window, bx, by, bw, 2, 0xFFFFFF33);
+
+    int hud_y = 56;
     if(player.jump_boost_timer>0){
-        draw_rect(&window, cx-44, 56, 88, 18, 0xFFAA0099);
-        draw_text_centered(&window, &font, "BOOST",
-                           cx, 59, 1,1,2,1, 0xFFFFFFFF);
+        draw_rect(&window, cx-80, hud_y, 70, 18, 0xFFAA0099);
+        draw_text_centered(&window, &font, "JUMP", cx-45, hud_y+3, 1,1,2,1, 0xFFFFFFFF);
     }
+    if(player.speed_boost_timer>0){
+        draw_rect(&window, cx+10, hud_y, 70, 18, 0x00AAFF99);
+        draw_text_centered(&window, &font, "SPEED", cx+45, hud_y+3, 1,1,2,1, 0xFFFFFFFF);
+    }
+
     if(player.edge_grab){
         draw_rect(&window, 8, 36, 80, 18, 0x00CED188);
         draw_text(&window, &font, "GRAB", 12, 39, 1,1,2,1, 0xFFFFFFFF);
@@ -315,6 +331,30 @@ void draw_menu(){
         draw_text(&window,&font,"COLLECT GOLD COINS",   lx,ly+ls*4,1,1,2,1,0xFFFFFFFF);
         draw_text(&window,&font,"GET STAR FOR BOOST",   lx,ly+ls*5,1,1,2,1,0xFFFFFFFF);
         draw_text(&window,&font,"ESC  BACK",            lx,ly+ls*7,1,1,2,1,0x8899AAFF);
+    }
+}
+
+//###############################################
+// CHEST
+//###############################################
+void draw_chests(){
+    for(int i=0;i<chest_count_actual;i++){
+        int cx = SX(chests[i].x), cy = SY(chests[i].y);
+        int cw = SP(0.6), ch = SP(0.4);
+
+        if(chests[i].state == 0){ // Đang đóng
+            draw_rect_centered(&window, cx, cy, cw, ch, 0x8B4513FF);
+            draw_rect_centered(&window, cx, cy, cw+2, 4, 0x000000FF);
+            draw_rect_centered(&window, cx, cy, 6, 8, 0xFFD700FF); // Ổ khóa
+        } else { // Mở tung
+            draw_rect_centered(&window, cx, cy + ch/4, cw, ch/2, 0x8B4513FF);
+            draw_rect_centered(&window, cx, cy - ch/4, cw, ch/4, 0x6B3A2AFF); 
+        }
+
+        if(chests[i].show_key && ((int)(tps_timer.time * 4) % 2 == 0)){
+            draw_rect_centered(&window, cx, cy - SP(0.6), SP(0.3), SP(0.3), 0x00000088);
+            draw_text_centered(&window, &font, "E", cx, cy - SP(0.6) - 5, 2,2,2,2, 0xFFFFFFFF);
+        }
     }
 }
 

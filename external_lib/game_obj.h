@@ -122,10 +122,18 @@ struct coin_data {
     int    collected;
 };
 
+struct chest_data {
+    double x, y;
+    int state;
+    int item_type;
+    int show_key;
+};
+
 struct item_data {
     double x, y;       // center in meters
     int    active;
     int    respawn_timer;
+    int type;
 };
 
 struct enemy_data {
@@ -157,6 +165,7 @@ struct player_data {
     int    god_mode;
     double respawn_x, respawn_y;
     int    jump_boost_timer;
+    int speed_boost_timer;
     int    score;
     int    last_move_dir;
 };

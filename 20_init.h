@@ -21,6 +21,7 @@ void reset_player(){
     player.dashing=0;    player.dash_dir=1;
     player.invincible=0; player.god_mode=0;
     player.last_move_dir=1; player.jump_boost_timer=0;
+    player.speed_boost_timer = 0;
 }
 
 //###############################################
@@ -42,6 +43,7 @@ void reset_game(){
         coins,   &coin_count_actual,   COIN_COUNT,
         items,   &item_count_actual,   ITEM_COUNT,
         decors,  &decor_count_actual,  DECOR_COUNT,
+        chests,  &chest_count_actual,  CHEST_COUNT,
         &player.respawn_x, &player.respawn_y);
 
     // screen dims come from window, not file
@@ -72,6 +74,7 @@ void reload_world(){
         coins,   &coin_count_actual,   COIN_COUNT,
         items,   &item_count_actual,   ITEM_COUNT,
         decors,  &decor_count_actual,  DECOR_COUNT,
+        chests,  &chest_count_actual,  CHEST_COUNT,
         &player.respawn_x, &player.respawn_y);
 
     cfg.px_per_m = saved_px_per_m;         // restore zoom
@@ -93,7 +96,7 @@ void reload_world(){
 //###############################################
 int init(){
     init_graphic_lib();
-    init_window(&window, 1200, 900, "Vertical Climber");
+    init_window(&window, 1200, 800, "Vertical Climber");
 
     render_flag=0;
     reset_timer(&tps_timer, 1.0/20.0);

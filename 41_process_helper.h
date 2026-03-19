@@ -17,6 +17,9 @@ static inline double dsign(double v){ return v>0?1.0:v<0?-1.0:0.0; }
 void process_player_movement(double dt){
     int ml=kb.key_a.hold, mr=kb.key_d.hold;
 
+    if(player.speed_boost_timer > 0) player.speed_boost_timer--;
+    double cur_speed = (player.speed_boost_timer > 0) ? cfg.move_speed * 1.5 : cfg.move_speed;
+
     // GOD MODE
     if(player.god_mode){
         double fly=6.0; // m/s
@@ -47,8 +50,8 @@ void process_player_movement(double dt){
         player.base.vy=0; player.base.ay=0;
     } else if(!player.edge_grab){
         double tvx=0;
-        if(ml){ tvx=-cfg.move_speed; player.last_move_dir=-1; }
-        if(mr){ tvx= cfg.move_speed; player.last_move_dir= 1; }
+        if(ml){ tvx=-cur_speed; player.last_move_dir=-1; }
+        if(mr){ tvx= cur_speed; player.last_move_dir= 1; }
         if(tvx!=0){
             double diff=tvx-player.base.vx;
             double step=cfg.move_accel*dt;
@@ -193,12 +196,21 @@ void process_items(){
     double pw=cfg.player_w, ph=cfg.player_h;
     for(int i=0;i<item_count_actual;i++){
         if(!items[i].active){
-            if(--items[i].respawn_timer<=0) items[i].active=1;
+            if(--items[i].respawn_timer > 0){
+                if(--items[i].respawn_timer == 0){
+                    items[i].active = 1;
+                }
+            }
             continue;
         }
         if(check_two_box_2d_hit_centralized(px,py,pw,ph,items[i].x,items[i].y,0.24,0.24)){
-            items[i].active=0; items[i].respawn_timer=400;
-            player.jump_boost_timer=200;
+            items[i].active=0; 
+            if (items[i].respawn_timer != -1){
+                items[i].respawn_timer=400;
+            }
+            //what item
+            if(items[i].type == 1) player.speed_boost_timer = 200;
+            else player.jump_boost_timer = 200;
         }
     }
 }
@@ -253,6 +265,56 @@ void process_enemies(){
             double force=(e->type==ENEMY_BOSS)?5.0:4.0;
             player.base.vx=push*force;
             player.base.vy=(e->type==ENEMY_BOSS)?-4.5:-3.5;
+        }
+    }
+}
+
+
+//###############################################
+// CHEST
+//###############################################
+void process_chests(){
+    double px = player.base.x, py = player.base.y;
+    for(int i = 0; i < chest_count_actual; i++){
+        if(chests[i].state == 1){
+            chests[i].show_key = 0;
+            continue;
+        }
+        double dx = px - chests[i].x;
+        double dy = py - chests[i].y;
+        if(dx*dx + dy*dy < 1.5*1.5){
+            chests[i].show_key = 1;
+            if(kb.key_e.click){
+                chests[i].state = 1;
+                chests[i].show_key = 0;
+
+                int spawned = 0;
+                for(int j = 0; j < item_count_actual; j++){
+                    if(!items[j].active){
+                        items[j].active = 1;
+                        items[j].x = chests[i].x - 0.3;
+                        items[j].y = chests[i].y;
+                        items[j].type = chests[i].item_type;
+                        items[j].respawn_timer = -1; 
+                        spawned = 1;
+                        break;
+                    }
+                }
+                
+                if(!spawned && item_count_actual < ITEM_COUNT){
+                    int j = item_count_actual;
+                    items[j].active = 1;
+                    items[j].x = chests[i].x - 0.3;
+                    items[j].y = chests[i].y;
+                    items[j].type = chests[i].item_type;
+                    items[j].respawn_timer = -1;
+                    
+                    item_count_actual++;
+                }
+            }
+        }
+        else{
+            chests[i].show_key = 0;
         }
     }
 }
