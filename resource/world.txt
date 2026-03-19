@@ -75,7 +75,7 @@ I 10 7.5
 
 # --- chests ---
 B 5 4.5 1
-B 14a  4.5 2
+B 14 4.5 2
 
 # --- decor (x y w h color [label/teleporter]) ---
 # tree trunk
