@@ -22,12 +22,12 @@ void process_player_movement(double dt){
 
     // GOD MODE
     if(player.god_mode){
-        double fly=6.0; // m/s
+        double fly=6.0;
         player.base.vx=0; player.base.vy=0; player.base.ay=0;
-        if(ml)              player.base.x -= fly*dt;
-        if(mr)              player.base.x += fly*dt;
-        if(kb.key_w.hold)   player.base.y -= fly*dt;
-        if(kb.key_s.hold)   player.base.y += fly*dt;
+        if(ml)                player.base.x -= fly*dt;
+        if(mr)                player.base.x += fly*dt;
+        if(kb.key_w.hold)     player.base.y -= fly*dt;
+        if(kb.key_s.hold)     player.base.y += fly*dt;
         if(kb.key_space.hold) player.base.y -= fly*dt;
         player.base.x=dclamp(player.base.x,0,cfg.world_w);
         player.base.y=dclamp(player.base.y,0,cfg.world_h);
@@ -90,75 +90,83 @@ void process_player_movement(double dt){
 
     update_base(&player.base,dt);
 
-    // velocity caps — prevents tunnelling through thin terrain
+    // velocity caps
     if(player.base.vx >  cfg.max_vx) player.base.vx =  cfg.max_vx;
     if(player.base.vx < -cfg.max_vx) player.base.vx = -cfg.max_vx;
     if(player.base.vy >  cfg.max_vy) player.base.vy =  cfg.max_vy;
     if(player.base.vy < -cfg.max_vy) player.base.vy = -cfg.max_vy;
 
     // X world clamp
-    if(player.base.x<cfg.player_w/2)
-        player.base.x=cfg.player_w/2;
-    if(player.base.x>cfg.world_w-cfg.player_w/2)
-        player.base.x=cfg.world_w-cfg.player_w/2;
+    if(player.base.x < cfg.player_w/2)             player.base.x = cfg.player_w/2;
+    if(player.base.x > cfg.world_w-cfg.player_w/2) player.base.x = cfg.world_w-cfg.player_w/2;
 
     if(player.invincible>0)       player.invincible--;
     if(player.jump_boost_timer>0) player.jump_boost_timer--;
 }
 
 //###############################################
-// TERRAIN COLLISION
+// TERRAIN COLLISION  (player)
+// Generic push-out via resolve_terrain_collision.
+// Player-specific flags (on_ground, edge_grab,
+// TERRAIN_BREAK) handled here after the call.
 //###############################################
 void process_terrain_collision(){
     if(player.god_mode) return;
     player.on_ground=0; player.on_wall=0;
 
-    double px=player.base.x, py=player.base.y;
-    double pw=player.base.col_w, ph=player.base.col_h;
-
     for(int i=0;i<terrain_count_actual;i++){
         if(terrains[i].broken) continue;
+
         double tx=terrains[i].base.x, ty=terrains[i].base.y;
         double tw=terrains[i].base.col_w, th=terrains[i].base.col_h;
-        if(!check_two_box_2d_hit_centralized(px,py,pw,ph,tx,ty,tw,th)) continue;
-        double ox=(pw+tw)/2.0-fabs(px-tx);
-        double oy=(ph+th)/2.0-fabs(py-ty);
-        if(ox<=0||oy<=0) continue;
 
-        if(oy<ox){
-            if(py<ty){
-                player.base.y-=oy;
-                if(player.base.vy>0){
-                    if(terrains[i].type==TERRAIN_BREAK&&terrains[i].hp>0){
-                        terrains[i].hp--;
-                        if(terrains[i].hp<=0){
-                            terrains[i].broken=1;
-                            terrains[i].broken_timer=300;
-                            player.base.vy=-2.5;
-                        } else player.base.vy=0;
-                    } else player.base.vy=0;
-                    player.on_ground=1; player.jump_count=0;
-                    player.dash_ready=1; player.edge_grab=0;
-                    player.grab_wall_dir=0;
-                }
+        // peek overlap before resolving — needed for TERRAIN_BREAK and edge grab
+        double bx=player.base.x, by=player.base.y;
+        double bw=player.base.col_w, bh=player.base.col_h;
+        double ox=(bw+tw)/2.0-fabs(bx-tx);
+        double oy=(bh+th)/2.0-fabs(by-ty);
+        int vertical_hit = (ox>0&&oy>0) && (oy<ox);
+        int landing      = vertical_hit && (by<ty) && (player.base.vy>0);
+
+        // TERRAIN_BREAK: intercept before generic resolver zeroes vy
+        if(landing && terrains[i].type==TERRAIN_BREAK && terrains[i].hp>0){
+            player.base.y -= oy;
+            terrains[i].hp--;
+            if(terrains[i].hp<=0){
+                terrains[i].broken=1;
+                terrains[i].broken_timer=300;
+                player.base.vy=-2.5;
             } else {
-                player.base.y+=oy;
-                if(player.base.vy<0) player.base.vy=0;
+                player.base.vy=0;
             }
-            py=player.base.y;
-        } else {
-            int ws; // wall side
-            if(px<tx){ player.base.x-=ox; ws= 1; if(player.base.vx>0) player.base.vx=0; }
-            else      { player.base.x+=ox; ws=-1; if(player.base.vx<0) player.base.vx=0; }
-            player.on_wall=ws; px=player.base.x;
-            int pressing=(ws==-1&&kb.key_a.hold)||(ws==1&&kb.key_d.hold);
-            if(!player.on_ground&&pressing&&!player.edge_grab){
+            player.on_ground=1; player.jump_count=0;
+            player.dash_ready=1; player.edge_grab=0; player.grab_wall_dir=0;
+            continue;
+        }
+
+        int hit = resolve_terrain_collision(&player.base, tx, ty, tw, th);
+        if(!hit) continue;
+
+        if(hit & 0x1){
+            // vertical — floor landing
+            if(player.base.vy >= 0){
+                player.on_ground=1; player.jump_count=0;
+                player.dash_ready=1; player.edge_grab=0; player.grab_wall_dir=0;
+            }
+        }
+        if(hit & 0x2){
+            // horizontal — wall, check edge grab
+            int ws = (bx < tx) ? 1 : -1;
+            player.on_wall = ws;
+            int pressing = (ws==-1&&kb.key_a.hold)||(ws==1&&kb.key_d.hold);
+            if(!player.on_ground && pressing && !player.edge_grab){
                 player.edge_grab=1; player.grab_wall_dir=ws;
                 player.base.vy=dclamp(player.base.vy,-2.0,2.0);
             }
         }
     }
-    if(player.on_wall==0&&player.edge_grab){ player.edge_grab=0; player.grab_wall_dir=0; }
+
+    if(player.on_wall==0 && player.edge_grab){ player.edge_grab=0; player.grab_wall_dir=0; }
     if(player.on_ground) player.edge_grab=0;
 }
 
@@ -170,6 +178,65 @@ void process_terrain_timers(){
         if(!terrains[i].broken) continue;
         if(--terrains[i].broken_timer<=0){
             terrains[i].broken=0; terrains[i].hp=1;
+        }
+    }
+}
+
+//###############################################
+// POBJS  (pushable physics objects)
+// 1. gravity + integrate
+// 2. terrain push-out (generic)
+// 3. player <-> pobj two-way collision
+//###############################################
+void process_pobjs(double dt){
+    for(int i=0;i<pobj_count_actual;i++){
+        struct pobj_data* p=&pobjs[i];
+        if(!p->active) continue;
+
+        // gravity
+        p->base.ay = cfg.gravity;
+        update_base(&p->base, dt);
+
+        // velocity caps (reuse player caps — reasonable for any obj)
+        if(p->base.vx >  cfg.max_vx) p->base.vx =  cfg.max_vx;
+        if(p->base.vx < -cfg.max_vx) p->base.vx = -cfg.max_vx;
+        if(p->base.vy >  cfg.max_vy) p->base.vy =  cfg.max_vy;
+        if(p->base.vy < -cfg.max_vy) p->base.vy = -cfg.max_vy;
+
+        // terrain collision
+        p->on_ground = 0;
+        for(int j=0;j<terrain_count_actual;j++){
+            if(terrains[j].broken) continue;
+            int hit = resolve_terrain_collision(&p->base,
+                terrains[j].base.x, terrains[j].base.y,
+                terrains[j].base.col_w, terrains[j].base.col_h);
+            if(hit & 0x1) p->on_ground = 1;
+        }
+
+        // player <-> pobj: horizontal side push only
+        {
+            double ax = player.base.x + player.base.col_ox;
+            double ay = player.base.y + player.base.col_oy;
+            double aw = player.base.col_w, ah = player.base.col_h;
+            double bx = p->base.x + p->base.col_ox;
+            double by = p->base.y + p->base.col_oy;
+            double bw = p->base.col_w, bh = p->base.col_h;
+
+            double ov_x = (aw + bw) / 2.0 - fabs(ax - bx);
+            double ov_y = (ah + bh) / 2.0 - fabs(ay - by);
+
+            if(ov_x > 0 && ov_y > 0){
+                if(ov_x < ov_y){
+                    // side hit
+                    if(ax < bx){ player.base.x -= ov_x; p->base.x += ov_x; }
+                    else        { player.base.x += ov_x; p->base.x -= ov_x; }
+                    p->base.vx = player.base.vx;
+                } else {
+                    // vertical hit — push player only
+                    if(ay < by){ player.base.y -= ov_y; if(player.base.vy > 0){ player.base.vy = 0; player.on_ground = 1; player.jump_count = 0; player.dash_ready = 1; } }
+                    else       { player.base.y += ov_y; if(player.base.vy < 0)  player.base.vy = 0; }
+                }
+            }
         }
     }
 }
@@ -204,13 +271,10 @@ void process_items(){
             continue;
         }
         if(check_two_box_2d_hit_centralized(px,py,pw,ph,items[i].x,items[i].y,0.24,0.24)){
-            items[i].active=0; 
-            if (items[i].respawn_timer != -1){
-                items[i].respawn_timer=400;
-            }
-            //what item
+            items[i].active=0;
+            if(items[i].respawn_timer != -1) items[i].respawn_timer=400;
             if(items[i].type == 1) player.speed_boost_timer = 200;
-            else player.jump_boost_timer = 200;
+            else                   player.jump_boost_timer  = 200;
         }
     }
 }
@@ -231,7 +295,7 @@ void process_enemies(){
             continue;
         }
         if(!e->dashing){
-            double spd=1.0/20.0; // 1 m/s at 20 TPS
+            double spd=1.0/20.0;
             e->base.x+=e->patrol_dir*spd;
             if(e->base.x>=e->patrol_x_max){e->base.x=e->patrol_x_max;e->patrol_dir=-1;}
             if(e->base.x<=e->patrol_x_min){e->base.x=e->patrol_x_min;e->patrol_dir= 1;}
@@ -269,52 +333,37 @@ void process_enemies(){
     }
 }
 
-
 //###############################################
 // CHEST
 //###############################################
 void process_chests(){
-    double px = player.base.x, py = player.base.y;
-    for(int i = 0; i < chest_count_actual; i++){
-        if(chests[i].state == 1){
-            chests[i].show_key = 0;
-            continue;
-        }
-        double dx = px - chests[i].x;
-        double dy = py - chests[i].y;
-        if(dx*dx + dy*dy < 1.5*1.5){
-            chests[i].show_key = 1;
+    double px=player.base.x, py=player.base.y;
+    for(int i=0;i<chest_count_actual;i++){
+        if(chests[i].state==1){ chests[i].show_key=0; continue; }
+        double dx=px-chests[i].x, dy=py-chests[i].y;
+        if(dx*dx+dy*dy < 1.5*1.5){
+            chests[i].show_key=1;
             if(kb.key_e.click){
-                chests[i].state = 1;
-                chests[i].show_key = 0;
-
-                int spawned = 0;
-                for(int j = 0; j < item_count_actual; j++){
+                chests[i].state=1; chests[i].show_key=0;
+                int spawned=0;
+                for(int j=0;j<item_count_actual;j++){
                     if(!items[j].active){
-                        items[j].active = 1;
-                        items[j].x = chests[i].x - 0.3;
-                        items[j].y = chests[i].y;
-                        items[j].type = chests[i].item_type;
-                        items[j].respawn_timer = -1; 
-                        spawned = 1;
-                        break;
+                        items[j].active=1;
+                        items[j].x=chests[i].x-0.3; items[j].y=chests[i].y;
+                        items[j].type=chests[i].item_type; items[j].respawn_timer=-1;
+                        spawned=1; break;
                     }
                 }
-                
-                if(!spawned && item_count_actual < ITEM_COUNT){
-                    int j = item_count_actual;
-                    items[j].active = 1;
-                    items[j].x = chests[i].x - 0.3;
-                    items[j].y = chests[i].y;
-                    items[j].type = chests[i].item_type;
-                    items[j].respawn_timer = -1;
-                    
+                if(!spawned && item_count_actual<ITEM_COUNT){
+                    int j=item_count_actual;
+                    items[j].active=1;
+                    items[j].x=chests[i].x-0.3; items[j].y=chests[i].y;
+                    items[j].type=chests[i].item_type; items[j].respawn_timer=-1;
                     item_count_actual++;
                 }
             }
-        }
-        else{
-            chests[i].show_key = 0;
+        } else {
+            chests[i].show_key=0;
         }
     }
 }
@@ -323,8 +372,7 @@ void process_chests(){
 // CAMERA  (pixels, lerp follow)
 //###############################################
 void process_camera(){
-    double pm=cfg.px_per_m;
-    double sw=cfg.screen_w, sh=cfg.screen_h;
+    double pm=cfg.px_per_m, sw=cfg.screen_w, sh=cfg.screen_h;
     double tx=player.base.x*pm - sw/2.0;
     double ty=player.base.y*pm - sh/2.0;
     camera.x_px+=(tx-camera.x_px)*0.15;
@@ -332,7 +380,7 @@ void process_camera(){
 }
 
 //###############################################
-// WIN CHECK  (teleporter at 10m, 2.6m)
+// WIN CHECK
 //###############################################
 void process_win_check(){
     if(game_state==STATE_WIN) return;
@@ -341,8 +389,7 @@ void process_win_check(){
         if(check_two_box_2d_hit_centralized(
             player.base.x,player.base.y,cfg.player_w,cfg.player_h,
             decors[i].x,decors[i].y,decors[i].w,decors[i].h)){
-            game_state=STATE_WIN;
-            return;
+            game_state=STATE_WIN; return;
         }
     }
 }

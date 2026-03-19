@@ -17,6 +17,7 @@ void process(){
     if(game_state!=STATE_PLAY){ render_flag=1; return; }
     process_player_movement(dt);
     process_terrain_collision();
+    process_pobjs(dt);
     process_terrain_timers();
     process_coins();
     process_items();

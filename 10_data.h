@@ -18,6 +18,7 @@
 
 #define ENEMY_COUNT    7
 #define DECOR_COUNT    64
+#define POBJ_COUNT     16
 
 #define STATE_MENU     0
 #define STATE_PLAY     1
@@ -53,6 +54,7 @@ struct item_data items[ITEM_COUNT];
 struct enemy_data enemies[ENEMY_COUNT];
 struct decor_data decors[DECOR_COUNT];
 struct chest_data chests[CHEST_COUNT];
+struct pobj_data  pobjs[POBJ_COUNT];
 
 int game_state;
 int menu_sub_state;
@@ -62,6 +64,7 @@ int coin_count_actual;
 int item_count_actual;
 int decor_count_actual;
 int chest_count_actual;
+int pobj_count_actual;
 
 font_data font;
 

@@ -178,4 +178,15 @@ struct decor_data {
     int    is_teleporter;  // 1 = draw animated cage instead of plain rect
 };
 
+
+// Pushable physics object. Loaded from world.txt.
+// Uses physic_base_data for full physics (gravity, velocity, friction, restitution).
+// friction/restitution set per-object from world.txt — stored in base.
+struct pobj_data {
+    struct physic_base_data base;  // x,y = center in meters
+    int    active;
+    int    on_ground;
+    unsigned int color;            // 0xRRGGBBAA, for rendering
+};
+
 #endif

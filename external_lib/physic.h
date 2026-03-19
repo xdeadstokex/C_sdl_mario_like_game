@@ -142,4 +142,59 @@ static inline int check_entity_collision(struct physic_base_data* a, struct phys
     return 1;
 }
 
+
+//###############################################
+//####     GENERIC TERRAIN PUSH-OUT          ####
+//###############################################
+// Resolves one body against one static terrain rect.
+// Returns bitmask: 0x1 = vertical hit (floor/ceil), 0x2 = horizontal hit (wall)
+// Caller is responsible for on_ground / on_wall flags using the return value.
+//
+// Terrain is treated as immovable (weight < 0 equivalent).
+// body->friction and body->restitution are used for response.
+
+static inline int resolve_terrain_collision(
+    struct physic_base_data* body,
+    double tx, double ty, double tw, double th)
+{
+    double bx = body->x + body->col_ox;
+    double by = body->y + body->col_oy;
+    double bw = body->col_w, bh = body->col_h;
+
+    if(!check_two_box_2d_hit_centralized(bx, by, bw, bh, tx, ty, tw, th))
+        return 0;
+
+    double ox = (bw + tw) / 2.0 - fabs(bx - tx);
+    double oy = (bh + th) / 2.0 - fabs(by - ty);
+    if(ox <= 0 || oy <= 0) return 0;
+
+    if(oy < ox){
+        // vertical hit (floor or ceiling)
+        if(by < ty){
+            body->y -= oy;
+            if(body->vy > 0){
+                body->vy = -body->vy * body->restitution;
+                if(fabs(body->vy) < 0.05) body->vy = 0;
+            }
+        } else {
+            body->y += oy;
+            if(body->vy < 0){
+                body->vy = -body->vy * body->restitution;
+            }
+        }
+        body->vx *= (1.0 - body->friction);
+        return 0x1;
+    } else {
+        // horizontal hit (wall)
+        if(bx < tx) body->x -= ox;
+        else        body->x += ox;
+        if(body->vx != 0){
+            body->vx = -body->vx * body->restitution;
+            if(fabs(body->vx) < 0.05) body->vx = 0;
+        }
+        body->vy *= (1.0 - body->friction);
+        return 0x2;
+    }
+}
+
 #endif

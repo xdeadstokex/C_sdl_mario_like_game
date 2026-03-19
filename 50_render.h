@@ -16,6 +16,7 @@ void render(){
     draw_chests();
     draw_items();
     draw_decors();
+    draw_pobjs();
     draw_enemies();
     draw_player();
     draw_hud();

@@ -44,6 +44,7 @@ void reset_game(){
         items,   &item_count_actual,   ITEM_COUNT,
         decors,  &decor_count_actual,  DECOR_COUNT,
         chests,  &chest_count_actual,  CHEST_COUNT,
+        pobjs,   &pobj_count_actual,   POBJ_COUNT,
         &player.respawn_x, &player.respawn_y);
 
     // screen dims come from window, not file
@@ -75,6 +76,7 @@ void reload_world(){
         items,   &item_count_actual,   ITEM_COUNT,
         decors,  &decor_count_actual,  DECOR_COUNT,
         chests,  &chest_count_actual,  CHEST_COUNT,
+        pobjs,   &pobj_count_actual,   POBJ_COUNT,
         &player.respawn_x, &player.respawn_y);
 
     cfg.px_per_m = saved_px_per_m;         // restore zoom
