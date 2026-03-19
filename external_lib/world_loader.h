@@ -18,6 +18,7 @@
 //   C  x  y
 //   I  x  y
 //   P  x  y
+//   O  x  y  w  h  friction  restitution  color(0xRRGGBBAA)
 //   (all x,y = visual top-left in METERS)
 //
 // On parse error: fprintf(stderr) + exit(1)
@@ -49,6 +50,10 @@ typedef struct {
     struct decor_data*   decors;
     int*                 decor_count;
     int                  decor_max;
+
+    struct pobj_data*    pobjs;
+    int*                 pobj_count;
+    int                  pobj_max;
 
     // V key presence flags (1 = was set by file)
     int v_px_per_m, v_world_w, v_world_h;
@@ -244,6 +249,26 @@ static void load_tag_D(wl_ctx* ctx, const char* line){
     (*ctx->decor_count)++;
 }
 
+// O  x  y  w  h  friction  restitution  color
+// x,y = bottom-left in file space (y=0 ground, upward)
+// friction:    0.0=ice  1.0=full stop
+// restitution: 0.0=no bounce  1.0=full bounce
+// color = hex 0xRRGGBBAA
+static void load_tag_O(wl_ctx* ctx, const char* line){
+    wl_check_cap(ctx,*ctx->pobj_count,ctx->pobj_max,"O",line);
+    double x,y,w,h,fr,rest; unsigned int color;
+    int n=sscanf(line+1,"%lf %lf %lf %lf %lf %lf %x",&x,&y,&w,&h,&fr,&rest,&color);
+    wl_check_fields(ctx,n,7,"O",line);
+    int i=*ctx->pobj_count;
+    double py = ctx->cfg->world_h - y - h;  // flip to physic top-left
+    set_physic_base(&ctx->pobjs[i].base,
+        x+w/2.0, py+h/2.0, 0,0,0,0, 1.0, fr,rest, 0,0,w,h);
+    ctx->pobjs[i].active    = 1;
+    ctx->pobjs[i].on_ground = 0;
+    ctx->pobjs[i].color     = color;
+    (*ctx->pobj_count)++;
+}
+
 //###############################################
 // DEFAULT FILE
 //###############################################
@@ -253,20 +278,23 @@ static void wl_write_default(const char* fp){
     fprintf(f,
 "# VERTICAL CLIMBER — world.txt\n"
 "# All coordinates in METERS.\n"
-"# Y=0 ground level, Y increases UPWARD (like real life).\n"
-"# Loader flips to physic space internally.\n"
+"# Y=0 ground level, Y increases UPWARD.\n"
 "# Tags:\n"
 "#   V  key  value\n"
 "#   T  x  y  w  h  type(solid|break)  coin_inside(0|1)\n"
 "#   E  x  y  type(dasher|boss)  patrol_min  patrol_max\n"
-"#   C  x  y   I  x  y   P  x  y\n"
+"#   C  x  y\n"
+"#   I  x  y\n"
+"#   B  x  y  item_type\n"
 "#   D  x  y  w  h  color(0xRRGGBBAA)  [label or 'teleporter']\n"
+"#   O  x  y  w  h  friction  restitution  color(0xRRGGBBAA)\n"
+"#   P  x  y  (player spawn, bottom-left)\n"
 "# Reload mid-game: K\n"
 "\n"
 "# --- config ---\n"
 "V px_per_m 100\n"
 "V world_w 20\n"
-"V world_h 140\n"
+"V world_h 20\n"
 "V gravity 18\n"
 "V move_speed 2.8\n"
 "V move_accel 20\n"
@@ -282,72 +310,44 @@ static void wl_write_default(const char* fp){
 "V max_vx 10\n"
 "V max_vy 20\n"
 "\n"
-"# --- spawn (bottom-left of player, y from ground) ---\n"
-"P 9.86 1.0\n"
+"# --- spawn ---\n"
+"P 1.0 1.2\n"
 "\n"
-"# --- boundaries (y from ground up) ---\n"
-"T -0.2 0 0.2 140 solid 0\n"
-"T 20 0 0.2 140 solid 0\n"
-"T 0 -0.6 20 0.6 solid 0\n"
-"T 0 140 20 0.2 solid 0\n"
+"# --- walls + floor + ceiling ---\n"
+"T -0.2 0 0.2 20 solid 0\n"
+"T 20   0 0.2 20 solid 0\n"
+"T 0 -0.4 20 0.4 solid 0\n"
+"T 0 20   20 0.2 solid 0\n"
 "\n"
 "# --- ground ---\n"
-"T 0 0 20 1.2 solid 0\n"
-"T 0 1.2 3.4 0.8 solid 0\n"
-"T 16.6 1.2 3.4 0.8 solid 0\n"
+"T 0 0 20 1.0 solid 0\n"
 "\n"
-"# --- starter steps ---\n"
-"T 0.55 1.5 2 0.65 solid 0\n"
-"T 17.45 1.5 2 0.65 solid 0\n"
-"T 2 2.8 2.2 0.6 solid 0\n"
-"T 15.8 2.8 2.2 0.6 solid 0\n"
-"T 4 4.0 2 0.55 solid 0\n"
-"T 14 4.0 2 0.55 solid 0\n"
-"T 6.2 5.2 3 0.55 solid 0\n"
-"T 10.8 5.2 3 0.55 solid 0\n"
-"T 8.2 6.4 3.6 0.55 solid 0\n"
+"# --- platform (breakable) ---\n"
+"T 4 4 4 0.4 break 0\n"
 "\n"
-"# --- break rock with coin ---\n"
-"T 7 7.5 1.6 0.5 break 1\n"
+"# --- platform (solid, upper) ---\n"
+"T 10 8 6 0.4 solid 0\n"
 "\n"
-"# --- win platform ---\n"
-"T 5.6 137 8.8 0.3 solid 0\n"
+"# --- enemy ---\n"
+"E 11 8.4 dasher 10 16\n"
 "\n"
-"# --- enemies (bottom-left, y from ground) ---\n"
-"E 8.04 7.5 dasher 6.2 11.8\n"
-"E 9.68 137.5 boss 6 14\n"
+"# --- coin ---\n"
+"C 3 1.8\n"
 "\n"
-"# --- coins ---\n"
-"C 2.4 2.0\n"
-"C 17.6 2.0\n"
-"C 8.2 5.8\n"
-"C 7 7.0\n"
+"# --- item (speed boost) ---\n"
+"I 7 1.5\n"
 "\n"
-"# --- item ---\n"
-"I 10 7.5\n"
+"# --- chest ---\n"
+"B 14 1.0 2\n"
 "\n"
-"# --- decor (x y w h color [label/teleporter]) ---\n"
-"# tree trunk\n"
-"D 6.74 0.3 0.12 0.9 0x6B4423FF\n"
-"# tree foliage\n"
-"D 6.8 1.3 0.6 0.3 0x2E7D32FF\n"
-"D 6.8 1.6 0.46 0.28 0x388E3CFF\n"
-"D 6.8 1.9 0.30 0.24 0x43A047FF\n"
-"# snow on tree\n"
-"D 6.8 1.9 0.26 0.08 0xEEEEEEFF\n"
-"D 6.8 1.62 0.38 0.06 0xEEEEEEFF\n"
-"# coffee table top\n"
-"D 12.65 0.12 0.7 0.14 0xA0522DFF\n"
-"# table legs\n"
-"D 12.32 0 0.07 0.24 0x8B4513FF\n"
-"D 12.96 0 0.07 0.24 0x8B4513FF\n"
-"# mug\n"
-"D 12.55 0.24 0.12 0.14 0xFFFFFFFF\n"
-"D 12.55 0.24 0.09 0.10 0x6B3A2AFF\n"
-"# sign board\n"
-"D 8.7 1.28 1.6 0.32 0xF5DEB3FF SUMMIT\n"
-"# teleporter\n"
-"D 9.6 2.2 0.8 0.8 0x00FFFF44 teleporter\n"
+"# --- decor label ---\n"
+"D 1 1.0 2.0 0.3 0xF5DEB3FF START\n"
+"\n"
+"# --- teleporter (win) ---\n"
+"D 12 8.4 0.8 0.8 0x00FFFF44 teleporter\n"
+"\n"
+"# --- pushable box ---\n"
+"O 6 1.0 0.4 0.4 0.3 0.2 0xAA6633FF\n"
     );
     fclose(f);
     printf("[world_loader] wrote default %s\n",fp);
@@ -367,6 +367,7 @@ static void load_world(
     struct item_data*    items,    int* ic, int im,
     struct decor_data*   decors,   int* dc, int dm,
     struct chest_data* chests_arr, int* chest_c, int chest_m,
+    struct pobj_data*    pobjs,    int* oc, int om,
     double* spawn_x, double* spawn_y
 ){
     FILE* f=fopen(filepath,"r");
@@ -378,7 +379,7 @@ static void load_world(
     }
     *cfg=game_config_default();
     *tc=0; *ec=0; *cc=0; *ic=0; *dc=0;
-    *chest_c = 0;
+    *chest_c = 0; *oc = 0;
     wl_ctx ctx={0};
     ctx.filepath=filepath; ctx.cfg=cfg;
     ctx.terrains=terrains; ctx.terrain_count=tc; ctx.terrain_max=tm;
@@ -392,6 +393,10 @@ static void load_world(
     ctx.chests = chests_arr;
     ctx.chest_count = chest_c;
     ctx.chest_max = chest_m;
+
+    ctx.pobjs       = pobjs;
+    ctx.pobj_count  = oc;
+    ctx.pobj_max    = om;
 
     char line[512];
     while(fgets(line,sizeof(line),f)){
@@ -409,12 +414,13 @@ static void load_world(
             case 'B': load_tag_B(&ctx,line); break;
             case 'P': load_tag_P(&ctx,line); break;
             case 'D': load_tag_D(&ctx,line); break;
-            default:  wl_error(&ctx,"unknown tag (V T E C I P D)",line);
+            case 'O': load_tag_O(&ctx,line); break;
+            default:  wl_error(&ctx,"unknown tag (V T E C I P D O)",line);
         }
     }
     fclose(f);
-    printf("[world_loader] %s — T:%d E:%d C:%d I:%d D:%d P:%s\n",
-           filepath,*tc,*ec,*cc,*ic,*dc,preserve_player?"preserved":"loaded");
+    printf("[world_loader] %s — T:%d E:%d C:%d I:%d D:%d O:%d P:%s\n",
+           filepath,*tc,*ec,*cc,*ic,*dc,*oc,preserve_player?"preserved":"loaded");
 
     // --- AUTO REPAIR: insert missing fields at correct positions ---
     struct game_config* c = cfg;

@@ -229,6 +229,24 @@ void draw_decors(){
 }
 
 //###############################################
+// POBJS  (pushable physics objects)
+//###############################################
+void draw_pobjs(){
+    for(int i=0;i<pobj_count_actual;i++){
+        struct pobj_data* p=&pobjs[i];
+        if(!p->active) continue;
+        int px=SX(p->base.x), py=SY(p->base.y);
+        int pw=SP(p->base.col_w), ph=SP(p->base.col_h);
+        if(py+ph<0||py>(int)cfg.screen_h) continue;
+        if(px+pw<0||px>(int)cfg.screen_w) continue;
+        draw_rect_centered(&window,px,py,pw,ph,p->color);
+        // top highlight + bottom shadow for depth
+        draw_rect_centered(&window,px,py-ph/2+1,pw,2,0xFFFFFF44);
+        draw_rect_centered(&window,px,py+ph/2-1,pw,2,0x00000044);
+    }
+}
+
+//###############################################
 // HUD  (exact copy from user, duplicate GRAB removed)
 //###############################################
 void draw_hud(){
