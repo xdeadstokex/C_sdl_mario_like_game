@@ -118,6 +118,43 @@ void draw_player(){
     }
 }
 
+
+void draw_player_sensors(){
+    // inactive color (dim, semi-transparent)
+    unsigned int c_off = 0xFFFFFF33;
+    // active colors per direction
+    unsigned int c_d = player.sensors.d_active ? 0x00FF00FF : c_off;  // down  = green
+    unsigned int c_u = player.sensors.u_active ? 0xFF4444FF : c_off;  // up    = red
+    unsigned int c_l = player.sensors.l_active ? 0x4488FFFF : c_off;  // left  = blue
+    unsigned int c_r = player.sensors.r_active ? 0xFFAA00FF : c_off;  // right = orange
+
+    // convert sensor world coords to screen pixels and draw
+    draw_rect_centered(&window,
+        m2sx(player.sensors.dx, camera.x_px, cfg.px_per_m),
+        m2sy(player.sensors.dy, camera.y_px, cfg.px_per_m),
+        m2sp(player.sensors.dw, cfg.px_per_m),
+        m2sp(player.sensors.dh, cfg.px_per_m), c_d);
+
+    draw_rect_centered(&window,
+        m2sx(player.sensors.ux, camera.x_px, cfg.px_per_m),
+        m2sy(player.sensors.uy, camera.y_px, cfg.px_per_m),
+        m2sp(player.sensors.uw, cfg.px_per_m),
+        m2sp(player.sensors.uh, cfg.px_per_m), c_u);
+
+    draw_rect_centered(&window,
+        m2sx(player.sensors.lx, camera.x_px, cfg.px_per_m),
+        m2sy(player.sensors.ly, camera.y_px, cfg.px_per_m),
+        m2sp(player.sensors.lw, cfg.px_per_m),
+        m2sp(player.sensors.lh, cfg.px_per_m), c_l);
+
+    draw_rect_centered(&window,
+        m2sx(player.sensors.rx, camera.x_px, cfg.px_per_m),
+        m2sy(player.sensors.ry, camera.y_px, cfg.px_per_m),
+        m2sp(player.sensors.rw, cfg.px_per_m),
+        m2sp(player.sensors.rh, cfg.px_per_m), c_r);
+}
+
+
 //###############################################
 // ENEMIES
 //###############################################

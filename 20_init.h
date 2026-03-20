@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include "10_data.h"
 #include "external_lib/world_loader.h"
-
+#include "41_process_helper.h"
 #define WORLD_FILE "resource/world.txt"
 
 //###############################################
@@ -24,7 +24,9 @@ void reset_player(){
     player.speed_boost_timer = 0;
     player.hp = 5;
     player.fireball_ammo = 0;
-
+    // init sensors from starting position so first frame collision is valid
+    update_player_sensors();
+    clear_sensor_flags();
 }
 
 //###############################################
@@ -61,6 +63,11 @@ void reset_game(){
             terrains[i].hp=1;
         }
     }
+    // scale all frame-count timers from base 20 TPS to actual TPS
+    double tps_scale = (double)cfg.tps / 20.0;
+    cfg.dash_frames       = (int)(6  * tps_scale);
+    cfg.invincible_frames = (int)(40 * tps_scale);
+
     player.score=0;
     reset_player();
     snap_camera();
@@ -104,7 +111,9 @@ int init(){
     init_window(&window, 1200, 800, "Vertical Climber");
 
     render_flag=0;
-    reset_timer(&tps_timer, 1.0/20.0);
+    int target_tps = 60;
+    reset_timer(&tps_timer, 1.0/target_tps);
+    cfg.tps = target_tps;
 
     load_img(&window, &font.data, "resource/font_ASCII.png");
     set_font(&font, 5, 1);
