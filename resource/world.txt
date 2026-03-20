@@ -6,7 +6,7 @@
 #   T  x  y  w  h  type(solid|break)  coin_inside(0|1)
 #   E  x  y  type(dasher|boss)  patrol_min  patrol_max
 #   C  x  y
-#   I  x  y
+#   I  x  y  type
 #   B  x  y  item_type
 #   D  x  y  w  h  color(0xRRGGBBAA)  [label or 'teleporter']
 #   O  x  y  w  h  friction  restitution  color(0xRRGGBBAA)
