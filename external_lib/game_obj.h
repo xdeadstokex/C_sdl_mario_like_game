@@ -49,6 +49,7 @@ struct game_config {
     int    dash_frames;
     double edge_grab_slide;
     int    invincible_frames;
+    int    tps;              // target ticks per second — used to scale frame counters
 
     // player size  (meters)
     double player_w;
@@ -73,9 +74,10 @@ static struct game_config game_config_default(){
     c.jump_vy           = -7.0;
     c.jump_boost_vy     = -9.5;
     c.dash_speed        = 7.0;
-    c.dash_frames       = 6;
-    c.edge_grab_slide   = 0.5;
-    c.invincible_frames = 40;
+    c.dash_frames       = 6;    // frames at 20 TPS — scaled at runtime by tps/20
+    c.edge_grab_slide   = 0.5;  // per 20-TPS frame decay — scaled via pow() in movement
+    c.invincible_frames = 40;   // frames at 20 TPS — scaled at runtime
+    c.tps               = 20;   // default, overwritten in init
     c.player_w          = 0.28;
     c.player_h          = 0.36;
     c.max_vx            = 10.0;   // m/s cap
@@ -151,8 +153,26 @@ struct enemy_data {
     int    hp;
 };
 
+// Sensor percentages (of player w/h)
+// L/R sensors: thin vertically, inset top+bottom
+// U/D sensors: thin horizontally, inset left+right
+#define SENSOR_LR_W_PCT  0.10   // thin — less likely to graze corners
+#define SENSOR_LR_H_PCT  0.60   // inset top+bottom by 20% each side
+#define SENSOR_UD_W_PCT  0.60   // inset left+right by 20% each side
+#define SENSOR_UD_H_PCT  0.10   // thin
+
+// 4 directional sensors derived from player position each frame.
+// Each is a world-space center rect (x,y,w,h). No physics.
+struct player_sensor_data {
+    double lx, ly, lw, lh; int l_active;  // left
+    double rx, ry, rw, rh; int r_active;  // right
+    double ux, uy, uw, uh; int u_active;  // up
+    double dx, dy, dw, dh; int d_active;  // down
+};
+
 struct player_data {
     struct physic_base_data base;
+    struct player_sensor_data sensors;
     int    on_ground;
     int    on_wall;
     int    edge_grab;
@@ -168,9 +188,8 @@ struct player_data {
     int speed_boost_timer;
     int    score;
     int    last_move_dir;
-
-    int hp;
-    int fireball_ammo;
+    int    hp;
+    int    fireball_ammo;
 };
 
 struct decor_data {
@@ -192,13 +211,12 @@ struct pobj_data {
     unsigned int color;            // 0xRRGGBBAA, for rendering
 };
 
-
-//fireball item
-struct projectile_data{
+// Fireball projectile
+struct projectile_data {
     double x, y;
     double vx, vy;
-    int active; //có 
-    int dir; //hướng
+    int    active;
+    int    dir;
 };
 
 #endif

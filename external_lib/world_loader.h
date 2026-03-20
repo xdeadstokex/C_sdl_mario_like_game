@@ -289,7 +289,7 @@ static void wl_write_default(const char* fp){
 "#   T  x  y  w  h  type(solid|break)  coin_inside(0|1)\n"
 "#   E  x  y  type(dasher|boss)  patrol_min  patrol_max\n"
 "#   C  x  y\n"
-"#   I  x  y\n"
+"#   I  x  y  type\n"
 "#   B  x  y  item_type\n"
 "#   D  x  y  w  h  color(0xRRGGBBAA)  [label or 'teleporter']\n"
 "#   O  x  y  w  h  friction  restitution  color(0xRRGGBBAA)\n"

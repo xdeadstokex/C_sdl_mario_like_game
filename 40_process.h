@@ -22,9 +22,9 @@ void process(){
     process_coins();
     process_items();
     process_chests();
-    process_enemies();
+    process_enemies(dt);
     process_projectiles(dt);
-    process_camera();
+    process_camera(dt);
     process_win_check();
     render_flag=1;
 }
