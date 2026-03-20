@@ -168,6 +168,9 @@ struct player_data {
     int speed_boost_timer;
     int    score;
     int    last_move_dir;
+
+    int hp;
+    int fireball_ammo;
 };
 
 struct decor_data {
@@ -187,6 +190,15 @@ struct pobj_data {
     int    active;
     int    on_ground;
     unsigned int color;            // 0xRRGGBBAA, for rendering
+};
+
+
+//fireball item
+struct projectile_data{
+    double x, y;
+    double vx, vy;
+    int active; //có 
+    int dir; //hướng
 };
 
 #endif

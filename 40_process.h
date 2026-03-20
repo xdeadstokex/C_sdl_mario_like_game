@@ -23,6 +23,7 @@ void process(){
     process_items();
     process_chests();
     process_enemies();
+    process_projectiles(dt);
     process_camera();
     process_win_check();
     render_flag=1;

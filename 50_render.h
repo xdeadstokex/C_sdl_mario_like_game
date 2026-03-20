@@ -19,6 +19,7 @@ void render(){
     draw_pobjs();
     draw_enemies();
     draw_player();
+    draw_projectiles();
     draw_hud();
     if(game_state==STATE_WIN)   draw_win_screen();
     if(game_state==STATE_PAUSE) draw_pause_screen();

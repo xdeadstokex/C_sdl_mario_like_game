@@ -272,9 +272,11 @@ void process_items(){
         }
         if(check_two_box_2d_hit_centralized(px,py,pw,ph,items[i].x,items[i].y,0.24,0.24)){
             items[i].active=0;
-            if(items[i].respawn_timer != -1) items[i].respawn_timer=400;
-            if(items[i].type == 1) player.speed_boost_timer = 200;
-            else                   player.jump_boost_timer  = 200;
+            if(items[i].respawn_timer != -1) items[i].respawn_timer=400; //just the items outside the chests can be regenerate
+
+            if(items[i].type == 1) player.speed_boost_timer = 200; //speed boost
+            else if(items[i].type == 2) player.jump_boost_timer  = 200; //jump boost
+            else if(items[i].type == 3) player.fireball_ammo += 5; //+5 democracy
         }
     }
 }
@@ -290,7 +292,7 @@ void process_enemies(){
             if(e->type==ENEMY_BOSS&&e->hp<=0) continue;
             if(--e->stun_timer<=0){
                 e->active=1;
-                e->base.x=(e->patrol_x_min+e->patrol_x_max)/2.0;
+                // e->base.x=(e->patrol_x_min+e->patrol_x_max)/2.0;
             }
             continue;
         }
@@ -325,7 +327,16 @@ void process_enemies(){
             player.base.vy=jvy;
         } else if(player.invincible==0){
             player.invincible=cfg.invincible_frames;
-            double push=dsign(px-e->base.x); if(push==0) push=1;
+
+            //trừ hp, hết = play again
+            player.hp--;
+            if(player.hp <= 0){
+                reset_player();
+                return;
+            }
+
+            double push=dsign(px-e->base.x); 
+            if(push==0) push=1;
             double force=(e->type==ENEMY_BOSS)?5.0:4.0;
             player.base.vx=push*force;
             player.base.vy=(e->type==ENEMY_BOSS)?-4.5:-3.5;
@@ -369,6 +380,68 @@ void process_chests(){
 }
 
 //###############################################
+// FIREBALL
+//###############################################
+void process_projectiles(double dt){
+    //pick a fireball that "free"
+    if(kb.key_f.click && player.fireball_ammo > 0){
+        for(int i = 0; i < PROJ_COUNT; i++){
+            if(!projectiles[i].active){
+                projectiles[i].active = 1;
+                projectiles[i].x = player.base.x + player.last_move_dir*0.4;
+                projectiles[i].y = player.base.y;
+                projectiles[i].dir = player.last_move_dir;
+                projectiles[i].vx = player.last_move_dir*8.0;
+                player.fireball_ammo--;
+                break;
+            }
+        }
+    }
+
+    //update fireball's position
+    for(int i = 0; i < PROJ_COUNT; i++){
+        if(!projectiles[i].active) continue;
+        projectiles[i].x += projectiles[i].vx*dt;
+
+        //out map
+        if(projectiles[i].x < 0 || projectiles[i].x > cfg.world_w){
+            projectiles[i].active = 0;
+            continue;
+        }
+
+        int hit_wall = 0;
+        for(int j = 0; j < terrain_count_actual; j++){
+            if(terrains[j].broken) continue;
+            if(check_two_box_2d_hit_centralized(projectiles[i].x, projectiles[i].y, 0.2, 0.2, 
+                                                terrains[j].base.x, terrains[j].base.y, terrains[j].base.col_w, terrains[j].base.col_h)){
+
+                hit_wall = 1;
+                break;
+            }
+        }
+        if(hit_wall){
+            projectiles[i].active = 0;
+            continue;
+        }
+
+        for(int e = 0; e < enemy_count_actual; e++){
+            if(!enemies[e].active && enemies[e].hp <= 0) continue;
+            if(check_two_box_2d_hit_centralized(projectiles[i].x, projectiles[i].y, 0.3, 0.3, 
+                                                enemies[e].base.x, enemies[e].base.y, enemies[e].base.col_w, enemies[e].base.col_h)){
+                projectiles[i].active = 0;
+                enemies[e].hp--;
+                enemies[e].base.x += projectiles[i].dir*0.5;
+                if(enemies[e].hp <= 0){
+                    enemies[e].active = 0;
+                    enemies[e].stun_timer = 999999;
+                }
+                break;
+            }
+        }
+    }
+}
+
+//###############################################
 // CAMERA  (pixels, lerp follow)
 //###############################################
 void process_camera(){
@@ -384,6 +457,7 @@ void process_camera(){
 //###############################################
 void process_win_check(){
     if(game_state==STATE_WIN) return;
+
     for(int i=0;i<decor_count_actual;i++){
         if(!decors[i].is_teleporter) continue;
         if(check_two_box_2d_hit_centralized(
@@ -393,5 +467,6 @@ void process_win_check(){
         }
     }
 }
+
 
 #endif

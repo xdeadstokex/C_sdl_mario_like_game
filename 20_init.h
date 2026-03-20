@@ -22,6 +22,9 @@ void reset_player(){
     player.invincible=0; player.god_mode=0;
     player.last_move_dir=1; player.jump_boost_timer=0;
     player.speed_boost_timer = 0;
+    player.hp = 5;
+    player.fireball_ammo = 0;
+    
 }
 
 //###############################################

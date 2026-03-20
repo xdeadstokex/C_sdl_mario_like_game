@@ -198,7 +198,8 @@ Edge grab:
   Release     press opposite key (drop) or Space (wall jump)
   Wall jump   vx = -wall_dir * 3.0 m/s + full jump_vy
 
-No death: player falls and lands on lower terrain. Bottom is solid floor.
+Update: Hp now appear (init maybe 5 hp)
+Tobecontinued
 
 Velocity caps (applied after update_base each tick):
   vx clamped to [-max_vx, +max_vx]

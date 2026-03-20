@@ -15,6 +15,7 @@
 
 #define ITEM_COUNT     3
 #define CHEST_COUNT    10 //chest nums
+#define PROJ_COUNT     20 //fireball nums
 
 #define ENEMY_COUNT    7
 #define DECOR_COUNT    64
@@ -54,6 +55,7 @@ struct item_data items[ITEM_COUNT];
 struct enemy_data enemies[ENEMY_COUNT];
 struct decor_data decors[DECOR_COUNT];
 struct chest_data chests[CHEST_COUNT];
+struct projectile_data projectiles[PROJ_COUNT];
 struct pobj_data  pobjs[POBJ_COUNT];
 
 int game_state;

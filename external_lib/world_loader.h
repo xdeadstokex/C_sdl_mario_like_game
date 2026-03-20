@@ -178,15 +178,20 @@ static void load_tag_C(wl_ctx* ctx, const char* line){
     (*ctx->coin_count)++;
 }
 
-// I  x  y  (center in meters)
+// I  x  y  type (center in meters)
 static void load_tag_I(wl_ctx* ctx, const char* line){
     wl_check_cap(ctx,*ctx->item_count,ctx->item_max,"I",line);
-    double x,y; int n=sscanf(line+1,"%lf %lf",&x,&y);
-    wl_check_fields(ctx,n,2,"I",line);
+    double x,y;
+    int type = 2;
+    int n = sscanf(line+1,"%lf %lf %d", &x, &y, &type);
+    if(n < 2) wl_check_fields(ctx, n, 3, "I", line);
+    
     int i=*ctx->item_count;
     ctx->items[i].x=x;
     ctx->items[i].y=ctx->cfg->world_h - y;  // flip
-    ctx->items[i].active=1; ctx->items[i].respawn_timer=0;
+    ctx->items[i].active=1; 
+    ctx->items[i].respawn_timer=0;
+    ctx->items[i].type = type;
     (*ctx->item_count)++;
 }
 

@@ -175,10 +175,15 @@ void draw_items(){
             draw_rect_centered(&window,isx,isy,ib,ia,0x00FFFFFF);
             draw_rect_centered(&window,isx,isy,ic2,ic2,0x00AAFFFF);
         }
-        else{
+        else if(items[i].type == 2){
             draw_rect_centered(&window,isx,isy,ia,ib,0xFFFF00FF);
             draw_rect_centered(&window,isx,isy,ib,ia,0xFFFF00FF);
             draw_rect_centered(&window,isx,isy,ic2,ic2,0xFFAA00FF);
+        }
+        else if(items[i].type == 3){
+            draw_rect_centered(&window,isx,isy,SP(0.22),SP(0.22),0xCC1100FF); 
+            draw_rect_centered(&window,isx,isy,SP(0.16),SP(0.16),0xFF4400FF); 
+            draw_rect_centered(&window,isx,isy,SP(0.08),SP(0.08),0xFFFF00FF); 
         }
         
         draw_rect_centered(&window,isx,isy,id,id,0xFFFFFFFF);
@@ -247,6 +252,19 @@ void draw_pobjs(){
 }
 
 //###############################################
+// FIREBALL
+//###############################################
+void draw_projectiles(){
+    for(int i = 0; i < PROJ_COUNT; i++){
+        if(!projectiles[i].active) continue;
+
+        int px = SX(projectiles[i].x), py = SY(projectiles[i].y);
+        draw_rect_centered(&window, px, py, SP(0.2), SP(0.2), 0xFF4500FF);
+        draw_rect_centered(&window, px, py, SP(0.1), SP(0.1), 0xFFD700FF);
+    }
+}
+
+//###############################################
 // HUD  (exact copy from user, duplicate GRAB removed)
 //###############################################
 void draw_hud(){
@@ -255,6 +273,15 @@ void draw_hud(){
     sprintf(buf, "COINS %d", player.score);
     draw_rect(&window, 8, 8, 130, 24, 0x00000088);
     draw_text(&window, &font, buf, 12, 12, 2,2,2,2, 0xFFD700FF);
+
+    sprintf(buf, "HP: %d", player.hp);
+    draw_rect(&window, 8, 36, 130, 24, 0x00000088);
+    draw_text(&window, &font, buf, 12, 40, 2,2,2,2, 0xFF3333FF); 
+
+    sprintf(buf, "FIRE: %d", player.fireball_ammo);
+    draw_rect(&window, 8, 64, 130, 24, 0x00000088);
+    draw_text(&window, &font, buf, 12, 68, 2,2,2,2, 0xFF6600FF); 
+
     // --- TOP-CENTER BLOCK ---
     double h_m = cfg.world_h - player.base.y;
     if(h_m<0) h_m=0;
@@ -280,16 +307,19 @@ void draw_hud(){
     int hud_y = 56;
     if(player.jump_boost_timer>0){
         draw_rect(&window, cx-80, hud_y, 70, 18, 0xFFAA0099);
-        draw_text_centered(&window, &font, "JUMP", cx-45, hud_y+3, 1,1,2,1, 0xFFFFFFFF);
+        draw_text_centered(&window, &font, "JUMP", cx-45, hud_y+10, 1,1,2,1, 0xFFFFFFFF);
     }
     if(player.speed_boost_timer>0){
         draw_rect(&window, cx+10, hud_y, 70, 18, 0x00AAFF99);
-        draw_text_centered(&window, &font, "SPEED", cx+45, hud_y+3, 1,1,2,1, 0xFFFFFFFF);
+        draw_text_centered(&window, &font, "SPEED", cx+45, hud_y+10, 1,1,2,1, 0xFFFFFFFF);
     }
 
     if(player.edge_grab){
-        draw_rect(&window, 8, 36, 80, 18, 0x00CED188);
-        draw_text(&window, &font, "GRAB", 12, 39, 1,1,2,1, 0xFFFFFFFF);
+        int sw = (int)cfg.screen_w;
+        // Chiều rộng hộp là 80, căn lề phải 8 pixel -> tọa độ X = sw - 80 - 8 = sw - 88
+        draw_rect(&window, sw - 68, 20, 60, 20, 0x00CED188); 
+        // Lùi vào trong hộp 4 pixel để viết chữ -> tọa độ X = sw - 88 + 4 = sw - 84
+        draw_text(&window, &font, "GRAB", sw - 54, 26, 1.2, 1.2, 2, 1, 0xFFFFFFFF);
     }
     if(player.god_mode){
         draw_rect(&window, (int)cfg.screen_w-110, 8, 100, 24, 0xFF880099);
