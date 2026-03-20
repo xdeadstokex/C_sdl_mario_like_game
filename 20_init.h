@@ -24,7 +24,7 @@ void reset_player(){
     player.speed_boost_timer = 0;
     player.hp = 5;
     player.fireball_ammo = 0;
-    
+
 }
 
 //###############################################
@@ -104,7 +104,7 @@ int init(){
     init_window(&window, 1200, 800, "Vertical Climber");
 
     render_flag=0;
-    reset_timer(&tps_timer, 1.0/20.0);
+    reset_timer(&tps_timer, 1.0/25.0);
 
     load_img(&window, &font.data, "resource/font_ASCII.png");
     set_font(&font, 5, 1);
