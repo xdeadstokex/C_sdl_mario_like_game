@@ -1,5 +1,7 @@
 # C_sdl_mario_like_game
+
 DES:
+
 ```txt
 Vertical Climber, 2D platformer, reach the top
 that simple
@@ -14,6 +16,7 @@ Controls:
 ```
 
 DEPENDENCY
+
 ```txt
 gcc:        (find it yourself in window, mingw32 is normally used)
 SDL2:        https://github.com/libsdl-org/SDL/releases/tag/release-2.32.10
@@ -22,6 +25,7 @@ SDL2_IMAGE:  https://github.com/libsdl-org/SDL_image/releases/tag/release-2.8.8
 ```
 
 HOW TO COMPILE IN WINDOW
+
 ```txt
 WINDOWS (MinGW/GCC)
 -------------------
@@ -52,8 +56,8 @@ gcc main.c -o main.exe ^
 
 ```
 
-
 Teacher req:
+
 ```txt
 + Bản đồ và di chuyển: (3đ)
  - Có bản đồ lớn hơn screen ít nhất 4 lần: +1đ
@@ -75,6 +79,7 @@ sông, sắp các ô số đúng quy luật để mở cửa…
 ```
 
 SPEC:
+
 ```txt
 ================================================================================
 VERTICAL CLIMBER — MASTER SPEC (v5)
@@ -191,6 +196,7 @@ Controls:
   G           toggle god mode (free fly WASD+Space, skips all physics)
   K           hot reload world file (preserves player)
   I / O       zoom in / out (+/-10 px_per_m), snaps camera instantly
+  F           fire
 
 Edge grab:
   Activates   pressing A or D INTO a wall while airborne
@@ -208,7 +214,7 @@ Velocity caps (applied after update_base each tick):
 
 
 --------------------------------------------------------------------------------
-6. TERRAIN  (struct terrain_data[])
+6. TERRAIN  (struct terrain_data[]) **HEIGHT must > 0.5
 --------------------------------------------------------------------------------
 physic_base_data base   center x,y in meters; col_w/h in meters
 type: TERRAIN_SOLID (-1 hp) or TERRAIN_BREAK (hp=1)
@@ -254,8 +260,15 @@ Collision: 0.24x0.24m box. On collect: score++, collected=1. No respawn.
 10. ITEMS  (struct item_data[])
 --------------------------------------------------------------------------------
 Jump boost: jump_boost_timer=200 ticks on collect.
-Active=0 after collect; respawn after 400 ticks.
+Active=0 after collect; (respawn after 400 ticks only for the ones outside the chests)
 Effect: JUMP_BOOST_VY used instead of JUMP_VY while timer>0.
+
+Speed boost: speed_boost_timer=200 ticks on collect.
+Active=0 after collect; (respawn after 400 ticks only for the ones outside the chests)
+Effect: SPEED_BOOST (*1.5)
+
+Fireball: 5 Fireball, press F to fire, deal 1 dame
+
 
 
 --------------------------------------------------------------------------------
