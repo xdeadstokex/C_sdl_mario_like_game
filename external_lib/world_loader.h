@@ -153,9 +153,13 @@ static void load_tag_E(wl_ctx* ctx, const char* line){
     } else if(!strcmp(ts,"boss")){
         etype=ENEMY_BOSS;   cw=0.64; ch=0.64; dt=45; dvx=5.2; hp=5;
     } else if(!strcmp(ts,"shooter")){
-        etype=ENEMY_SHOOTER; cw=0.32; ch=0.32; dt=120; dvx=1.5; hp=2; //dt thời gian chờ bắn
+        etype=ENEMY_SHOOTER; cw=0.32; ch=0.32; dt=120; dvx=1.5; hp=2; //dt: thời gian hồi chiêu
     } else if(!strcmp(ts,"sword")){
         etype=ENEMY_SWORD; cw=0.40; ch=0.45; dt=90; dvx=2.5; hp=3;
+    } else if(!strcmp(ts,"mage")){
+        etype=ENEMY_MAGE; cw=0.32; ch=0.40; dt=150; dvx=2.0; hp=2;//dt: thời gian hồi chiêu
+    } else if(!strcmp(ts,"weather")){
+        etype=ENEMY_WEATHER_BOSS; cw=0.70; ch=0.70; dt=100; dvx=20.0; hp=8;
     } else { wl_error(ctx,"E type must be dasher|boss|shooter|sword",line); return; }
 
     int i=*ctx->enemy_count;

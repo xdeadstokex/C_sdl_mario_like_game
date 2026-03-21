@@ -83,6 +83,10 @@ void draw_terrain(){
             draw_rect(&window,dsx,dsy,dsw,3,top_col);
             draw_rect(&window,dsx,dsy+dsh-3,dsw,3,0x00000033);
         }
+        
+        if(terrains[i].warning_timer > 0 && ((int)(tps_timer.time * 8) % 2 == 0)) {
+            draw_rect(&window, dsx, dsy, dsw, dsh, 0xFF000077);
+        }
     }
 }
 
@@ -174,6 +178,8 @@ void draw_enemies(){
         if(e->type == ENEMY_BOSS) col=0xFF2200FF;
         else if(e->type == ENEMY_SHOOTER) col=0x32CD32FF; 
         else if(e->type == ENEMY_SWORD) col=0xA9A9A9FF; 
+        else if(e->type == ENEMY_MAGE) col=0x8A2BE2FF;
+        else if(e->type == ENEMY_WEATHER_BOSS) col=0x00BFFFFF;
         else col=0xCC3333FF; 
 
         if(e->dashing) col=0xFF7700FF;
@@ -181,10 +187,12 @@ void draw_enemies(){
         int eye_s=SP(0.07);
         draw_rect_centered(&window,esx-ew/5,esy-eh/5,eye_s,eye_s,0xFFFF00FF);
         draw_rect_centered(&window,esx+ew/5,esy-eh/5,eye_s,eye_s,0xFFFF00FF);
-        if(e->type==ENEMY_BOSS&&e->hp>0){
+
+        if((e->type==ENEMY_BOSS || e->type==ENEMY_WEATHER_BOSS) && e->hp>0){
+            int max_hp = (e->type==ENEMY_BOSS) ? 5 : 8; 
             int bw=SP(0.8),bh=SP(0.1),bx=esx-SP(0.4),by=esy-eh/2-SP(0.16);
             draw_rect(&window,bx,by,bw,bh,0x333333FF);
-            draw_rect(&window,bx,by,bw*e->hp/5,bh,0xFF3333FF);
+            draw_rect(&window,bx,by,bw*e->hp/max_hp,bh,0xFF3333FF);
         }
     }
 }

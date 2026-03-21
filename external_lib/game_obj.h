@@ -24,6 +24,8 @@
 #define ENEMY_BOSS     1
 #define ENEMY_SHOOTER  2
 #define ENEMY_SWORD    3
+#define ENEMY_MAGE     4
+#define ENEMY_WEATHER_BOSS  5
 
 
 //###############################################
@@ -119,6 +121,7 @@ struct terrain_data {
     int    broken;
     int    broken_timer;
     int    coin_inside;
+    int    warning_timer;
 };
 
 struct coin_data {

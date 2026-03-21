@@ -62,6 +62,7 @@ void reset_game(){
             terrains[i].broken_timer=0;
             terrains[i].hp=1;
         }
+        terrains[i].warning_timer = 0;
     }
     // scale all frame-count timers from base 20 TPS to actual TPS
     double tps_scale = (double)cfg.tps / 20.0;
@@ -99,6 +100,7 @@ void reload_world(){
             terrains[i].broken_timer=0;
             terrains[i].hp=1;
         }
+        terrains[i].warning_timer = 0;
     }
     player.base.ay = cfg.gravity;
 }

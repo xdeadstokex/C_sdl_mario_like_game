@@ -271,6 +271,15 @@ void process_terrain_collision(){
 //###############################################
 void process_terrain_timers(){
     for(int i=0;i<terrain_count_actual;i++){
+        //warning
+        if(terrains[i].warning_timer > 0){
+            if(--terrains[i].warning_timer <= 0){ //disapear
+                terrains[i].broken = 1; 
+                terrains[i].broken_timer = 80 * cfg.tps / 20;
+            }
+        }
+        
+        //restore 
         if(!terrains[i].broken) continue;
         if(--terrains[i].broken_timer<=0){ terrains[i].broken=0; terrains[i].hp=1; }
     }
@@ -386,6 +395,14 @@ static inline void enemy_vs_player(struct enemy_data* e, double px, double py){
                 force = 12.0;
                 lift = -6.0;
             }
+            else if(e->type == ENEMY_WEATHER_BOSS){
+                force = 8.0;
+                lift = -5.0;
+            }
+            else if(e->type == ENEMY_MAGE){
+                force = 3.0;
+                lift = -3.0;
+            }
             else{
                 force = 4.0;
                 lift = -3.5;
@@ -500,6 +517,47 @@ void process_enemies(double dt){
                         break;
                     }
                 }
+            }
+        } 
+        else if(e->type == ENEMY_MAGE){
+            // Đã fix lỗi đếm giờ (chỉ trừ 1 lần mỗi frame)
+            if(e->action_timer > 0) e->action_timer--;
+            
+            if(e->action_timer <= 0){
+                double dx = px - e->base.x;
+                double dy = py - e->base.y;
+                if(dx*dx + dy*dy < 144){
+                    for(int k = 0; k < terrain_count_actual; k++){
+                        if(terrains[k].broken) continue;
+                        if(terrains[k].warning_timer > 0) continue;
+                        if(terrains[k].base.col_w > 10 || terrains[k].base.col_h > 10) continue;
+
+                        double tx = terrains[k].base.x;
+                        double ty = terrains[k].base.y;
+                        
+                        double player_foot = py + cfg.player_h / 2.0;
+                        double block_top   = ty - terrains[k].base.col_h / 2.0;
+
+                        int hit_x = fabs(px - tx) < (terrains[k].base.col_w/2.0 + cfg.player_w/2.0 - 0.05);
+                        int hit_y = (block_top - player_foot >= -0.1) && (block_top - player_foot < 0.2) && (player.base.vy >= 0);
+
+                        if(hit_x && hit_y){
+                            terrains[k].warning_timer = 40 * cfg.tps / 20; 
+                            e->action_timer = 100 * cfg.tps / 20;          
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        else if(e->type == ENEMY_WEATHER_BOSS){
+            if(--e->action_timer <= 0){
+                e->action_timer = 100 * cfg.tps/20;
+                e->dash_vx = -e->dash_vx;
+            }
+            double dx = px - e->base.x, dy = py - e->base.y;
+            if(dx*dx + dy*dy < 324.0) {
+                player.base.vx += e->dash_vx * dt;
             }
         }
         

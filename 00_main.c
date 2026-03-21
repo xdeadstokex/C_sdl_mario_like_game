@@ -16,7 +16,6 @@ if(!control()){ break; }
 process();
 render();
 }
-d
 return 1;
 }
 
