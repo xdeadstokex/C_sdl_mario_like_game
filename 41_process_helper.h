@@ -65,6 +65,7 @@ static inline void player_land(){
 }
 
 static inline void player_do_jump(){
+    play_sound(&sfx.jump);
     player.base.vy=jump_vy();
     player.jump_count=1; player.on_ground=0;
 }
@@ -126,6 +127,7 @@ static inline void apply_jump(){
 static inline void apply_dash(int ml, int mr){
     if(!((kb.key_shift_l.click||kb.key_shift_r.click)
          &&player.dash_ready&&!player.dashing&&!player.edge_grab)) return;
+    play_sound(&sfx.dash);
     player.dashing=cfg.dash_frames;
     player.dash_dir=player.last_move_dir;
     player.dash_ready=0;
@@ -361,13 +363,17 @@ static inline void enemy_vs_player(struct enemy_data* e, double px, double py){
     if(!stomp&&!body) return;
 
     if(stomp){
+        play_sound(&sfx.hit);
         if(--e->hp<=0){ e->active=0; e->stun_timer=(e->type==ENEMY_BOSS)?99999:60*cfg.tps/20; }
         else           { e->active=0; e->stun_timer=(e->type==ENEMY_BOSS)?80*cfg.tps/20:60*cfg.tps/20; }
         player.base.vy=(player.jump_boost_timer>0)?cfg.jump_boost_vy*0.7:cfg.jump_vy*0.7;
     } else if(player.invincible==0){
+        
         player.invincible=cfg.invincible_frames;
         player.hp--;
+        play_sound(&sfx.hitted);
         if(player.hp<=0){
+            play_sound(&sfx.die);
             reset_player();
         } else {
             double push=dsign(px-e->base.x); if(push==0) push=1;
@@ -512,7 +518,9 @@ void process_coins(){
             player.base.x,player.base.y,cfg.player_w,cfg.player_h,
             coins[i].x,coins[i].y,0.24,0.24)){
             coins[i].collected=1; player.score++;
+            play_sound(&sfx.coin);
         }
+        
     }
 }
 
@@ -528,6 +536,7 @@ void process_items(){
         if(check_two_box_2d_hit_centralized(
             player.base.x,player.base.y,cfg.player_w,cfg.player_h,
             items[i].x,items[i].y,0.24,0.24)){
+            play_sound(&sfx.buff);
             items[i].active=0;
             if(items[i].respawn_timer!=-1) items[i].respawn_timer=400*cfg.tps/20;
             if     (items[i].type==1) player.speed_boost_timer=200*cfg.tps/20;
@@ -547,6 +556,7 @@ void process_chests(){
         double dx=px-chests[i].x, dy=py-chests[i].y;
         chests[i].show_key=(dx*dx+dy*dy<1.5*1.5);
         if(!chests[i].show_key||!kb.key_e.click) continue;
+        play_sound(&sfx.chest);
         chests[i].state=1; chests[i].show_key=0;
         int j=0;
         for(;j<item_count_actual;j++) if(!items[j].active) break;
@@ -579,6 +589,7 @@ void process_win_check(){
         if(check_two_box_2d_hit_centralized(
             player.base.x,player.base.y,cfg.player_w,cfg.player_h,
             decors[i].x,decors[i].y,decors[i].w,decors[i].h)){
+            play_sound(&sfx.win);
             game_state=STATE_WIN; return;
         }
     }
