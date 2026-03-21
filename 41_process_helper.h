@@ -462,10 +462,11 @@ void process_coins(){
         if(coins[i].collected) continue;
         if(check_two_box_2d_hit_centralized(
             player.base.x,player.base.y,cfg.player_w,cfg.player_h,
-            play_sound(&sfx.coin);
             coins[i].x,coins[i].y,0.24,0.24)){
             coins[i].collected=1; player.score++;
+            play_sound(&sfx.coin);
         }
+        
     }
 }
 
