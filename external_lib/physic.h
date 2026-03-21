@@ -36,7 +36,7 @@ static inline void set_physic_base(struct physic_base_data* base,
     double col_w, double col_h){
     base->x = x; base->y = y;
     base->vx = vx; base->vy = vy;
-    base->ax = ax; base->ay = ay;
+    base->ax = ax; base->aay = ay;
     base->weight = weight;
     base->friction = friction;
     base->restitution = restitution;

@@ -170,7 +170,12 @@ void draw_enemies(){
             draw_line(&window,esx+ew/5,esy-eh/5,esx-ew/5,esy+eh/5,0x222222FF);
             continue;
         }
-        unsigned int col=(e->type==ENEMY_BOSS)?0xFF2200FF:0xCC3333FF;
+        unsigned int col;
+        if(e->type == ENEMY_BOSS) col=0xFF2200FF;
+        else if(e->type == ENEMY_SHOOTER) col=0x32CD32FF; 
+        else if(e->type == ENEMY_SWORD) col=0xA9A9A9FF; 
+        else col=0xCC3333FF; 
+
         if(e->dashing) col=0xFF7700FF;
         draw_rect_centered(&window,esx,esy,ew,eh,col);
         int eye_s=SP(0.07);
@@ -294,10 +299,16 @@ void draw_pobjs(){
 void draw_projectiles(){
     for(int i = 0; i < PROJ_COUNT; i++){
         if(!projectiles[i].active) continue;
-
         int px = SX(projectiles[i].x), py = SY(projectiles[i].y);
-        draw_rect_centered(&window, px, py, SP(0.2), SP(0.2), 0xFF4500FF);
-        draw_rect_centered(&window, px, py, SP(0.1), SP(0.1), 0xFFD700FF);
+        
+        if(projectiles[i].type == 0) {
+            draw_rect_centered(&window, px, py, SP(0.2), SP(0.2), 0xFF4500FF);
+            draw_rect_centered(&window, px, py, SP(0.1), SP(0.1), 0xFFD700FF);
+        } 
+        else {
+            draw_rect_centered(&window, px, py, SP(0.2), SP(0.2), 0x8A2BE2FF); 
+            draw_rect_centered(&window, px, py, SP(0.1), SP(0.1), 0x00FF00FF); 
+        }
     }
 }
 

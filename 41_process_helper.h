@@ -427,14 +427,14 @@ void process_projectiles(double dt){
 
         if(pr->type == 1){
             if(check_two_box_2d_hit_centralized(pr->x, pr->y, 0.2, 0.2, 
-                                                player.base.x, player.base.y, crg.player_w, cfg.player_h)){ 
+                                                player.base.x, player.base.y, cfg.player_w, cfg.player_h)){ 
                 pr->active = 0;
                 if(player.invincible == 0){
                     player.invincible = cfg.invincible_frames;
                     player.hp--;
                     if(player.hp <= 0) reset_player();
                     else{
-                        player.base.vx = pr.dir*5.0;
+                        player.base.vx = pr->dir*5.0;
                         player.base.vy = -3.0;
                     }
                 }
@@ -485,14 +485,14 @@ void process_enemies(double dt){
             enemy_update_dash(e,dt,px);
         }
         else if(e->type == ENEMY_SHOOTER){
-            if(--e.action_timer <= 0){
+            if(--e->action_timer <= 0){
                 e->action_timer = 60 * cfg.tps/20; //3 second/shot
                 for(int k = 0; k < PROJ_COUNT; k++){
                     if(!projectiles[k].active){
                         projectiles[k].active = 1;
                         projectiles[k].x = e->base.x;
                         projectiles[k].y = e->base.y;
-                        int dir = (px > e.base.x) ? 1 : -1;
+                        int dir = (px > e->base.x) ? 1 : -1;
                         projectiles[k].vx = dir * 6.0; //slower than player shot
                         projectiles[k].vy = 0;
                         projectiles[k].dir = dir;

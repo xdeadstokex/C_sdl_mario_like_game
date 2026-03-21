@@ -269,14 +269,12 @@ D 11.95 135.98 0.09 0.10 0x6B3A2AFF
 
 
 
->>>>>>> fd990c3fd9ea378802e82b5a3f1364acc3a69c35
-
 # --- enemies (bottom-left, y from ground) ---
 E 8.04 7.5 dasher 6.2 11.8
 E 10.5 63.6 dasher 6.5 11.7
 E 5.6 46.1 dasher 5 11
-
-
+E 9.86 3 shooter 8 12
+E 14 1.3 sword 13 16
 
 # --- coins ---
 C 2.4 2.0
