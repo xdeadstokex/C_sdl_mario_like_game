@@ -181,6 +181,7 @@ void process_player_movement(double dt){
                 projectiles[_i].vx=player.last_move_dir*12.0;
                 projectiles[_i].vy=0;
                 projectiles[_i].dir=player.last_move_dir;
+                projectiles[_i].type = 0;
                 break;
             }
         }
@@ -336,10 +337,10 @@ static inline void enemy_update_patrol(struct enemy_data* e, double dt){
 }
 
 static inline void enemy_update_dash(struct enemy_data* e, double dt, double px){
-    if(--e->dash_timer<=0&&!e->dashing){
+    if(--e->action_timer<=0&&!e->dashing){
         int tps=(int)(1.0/dt+0.5);
         int freq=(e->type==ENEMY_BOSS)?50:100;
-        e->dash_timer=(freq-20+(rand()%40))*tps/20;
+        e->action_timer=(freq-20+(rand()%40))*tps/20;
         e->dashing=tps*12/20;
         e->dash_vx=(px>e->base.x)?fabs(e->dash_vx):-fabs(e->dash_vx);
     }
@@ -370,8 +371,21 @@ static inline void enemy_vs_player(struct enemy_data* e, double px, double py){
             reset_player();
         } else {
             double push=dsign(px-e->base.x); if(push==0) push=1;
-            player.base.vx=push*((e->type==ENEMY_BOSS)?5.0:4.0);
-            player.base.vy=(e->type==ENEMY_BOSS)?-4.5:-3.5;
+            double force, lift;
+            if(e->type == ENEMY_BOSS){
+                force = 5.0;
+                lift = -4.5;
+            }
+            else if(e->type == ENEMY_SWORD){
+                force = 12.0;
+                lift = -6.0;
+            }
+            else{
+                force = 4.0;
+                lift = -3.5;
+            }
+            player.base.vx = push*force;
+            player.base.vy = lift;
         }
     }
 }
@@ -405,6 +419,23 @@ void process_projectiles(double dt){
         }
         if(hit_terrain){ pr->active=0; continue; }
 
+        if(pr->type == 1){
+            if(check_two_box_2d_hit_centralized(pr->x, pr->y, 0.2, 0.2, 
+                                                player.base.x, player.base.y, crg.player_w, cfg.player_h)){ 
+                pr->active = 0;
+                if(player.invincible == 0){
+                    player.invincible = cfg.invincible_frames;
+                    player.hp--;
+                    if(player.hp <= 0) reset_player();
+                    else{
+                        player.base.vx = pr.dir*5.0;
+                        player.base.vy = -3.0;
+                    }
+                }
+            }
+            continue;
+        }
+
         // hit enemy
         for(int j=0;j<enemy_count_actual;j++){
             struct enemy_data* e=&enemies[j];
@@ -412,13 +443,14 @@ void process_projectiles(double dt){
             if(check_two_box_2d_hit_centralized(
                 pr->x,pr->y,0.2,0.2,
                 e->base.x,e->base.y,e->base.col_w,e->base.col_h)){
-                pr->active=0;
+                pr->active=0; 
+                
                 if(--e->hp<=0){
                     e->active=0;
-                    e->stun_timer=(e->type==ENEMY_BOSS)?99999:60*cfg.tps/20;
+                    e->stun_timer = (e->type==ENEMY_BOSS) ? 99999 : 99999;
                 } else {
                     e->active=0;
-                    e->stun_timer=(e->type==ENEMY_BOSS)?80*cfg.tps/20:60*cfg.tps/20;
+                    e->stun_timer = (e->type==ENEMY_BOSS) ? 100*cfg.tps/20 : 600*cfg.tps/20;
                 }
                 break;
             }
@@ -437,12 +469,34 @@ void process_enemies(double dt){
             if(e->type==ENEMY_BOSS&&e->hp<=0) continue;
             if(--e->stun_timer<=0){
                 e->active=1;
-                e->base.x=(e->patrol_x_min+e->patrol_x_max)*0.5;
+                // e->base.x=(e->patrol_x_min+e->patrol_x_max)*0.5;
             }
             continue;
         }
         if(!e->dashing) enemy_update_patrol(e,dt);
-        enemy_update_dash(e,dt,px);
+
+        if(e->type == ENEMY_DASHER || e->type == ENEMY_BOSS){
+            enemy_update_dash(e,dt,px);
+        }
+        else if(e->type == ENEMY_SHOOTER){
+            if(--e.action_timer <= 0){
+                e->action_timer = 60 * cfg.tps/20; //3 second/shot
+                for(int k = 0; k < PROJ_COUNT; k++){
+                    if(!projectiles[k].active){
+                        projectiles[k].active = 1;
+                        projectiles[k].x = e->base.x;
+                        projectiles[k].y = e->base.y;
+                        int dir = (px > e.base.x) ? 1 : -1;
+                        projectiles[k].vx = dir * 6.0; //slower than player shot
+                        projectiles[k].vy = 0;
+                        projectiles[k].dir = dir;
+                        projectiles[k].type = 1;
+                        break;
+                    }
+                }
+            }
+        }
+        
         e->base.y=e->patrol_y;
         enemy_vs_player(e,px,py);
     }

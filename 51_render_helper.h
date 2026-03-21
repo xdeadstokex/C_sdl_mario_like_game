@@ -436,7 +436,7 @@ void draw_chests(){
             draw_rect_centered(&window, cx, cy - ch/4, cw, ch/4, 0x6B3A2AFF); 
         }
 
-        if(chests[i].show_key && ((int)(tps_timer.time * 4) % 2 == 0)){
+        if(chests[i].show_key){
             draw_rect_centered(&window, cx, cy - SP(0.6), SP(0.3), SP(0.3), 0x00000088);
             draw_text_centered(&window, &font, "E", cx, cy - SP(0.6) - 5, 2,2,2,2, 0xFFFFFFFF);
         }

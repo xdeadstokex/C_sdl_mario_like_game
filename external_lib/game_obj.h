@@ -22,6 +22,8 @@
 #define TERRAIN_BREAK  1
 #define ENEMY_DASHER   0
 #define ENEMY_BOSS     1
+#define ENEMY_SHOOTER  2
+#define ENEMY_SWORD    3
 
 
 //###############################################
@@ -147,7 +149,7 @@ struct enemy_data {
     int    patrol_timer;
     double patrol_x_min, patrol_x_max;  // meters
     double patrol_y;                     // meters
-    int    dash_timer;
+    int    action_timer;
     int    dashing;
     double dash_vx;    // m/s
     int    hp;
@@ -217,6 +219,7 @@ struct projectile_data {
     double vx, vy;
     int    active;
     int    dir;
+    int    type; //0:player, 1:mob 
 };
 
 #endif

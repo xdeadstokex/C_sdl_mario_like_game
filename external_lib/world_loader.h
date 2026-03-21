@@ -147,11 +147,17 @@ static void load_tag_E(wl_ctx* ctx, const char* line){
     int n=sscanf(line+1,"%lf %lf %31s %lf %lf",&x,&y,ts,&pmin,&pmax);
     wl_check_fields(ctx,n,5,"E",line);
     int etype; double cw,ch,dvx; int dt,hp;
+
     if(!strcmp(ts,"dasher")){
         etype=ENEMY_DASHER; cw=0.32; ch=0.32; dt=90; dvx=3.5; hp=1;
     } else if(!strcmp(ts,"boss")){
         etype=ENEMY_BOSS;   cw=0.64; ch=0.64; dt=45; dvx=5.2; hp=5;
-    } else { wl_error(ctx,"E type must be dasher|boss",line); return; }
+    } else if(!strcmp(ts,"shooter")){
+        etype=ENEMY_SHOOTER; cw=0.32; ch=0.32; dt=120; dvx=1.5; hp=2; //dt thời gian chờ bắn
+    } else if(!strcmp(ts,"sword")){
+        etype=ENEMY_SWORD; cw=0.40; ch=0.45; dt=90; dvx=2.5; hp=3;
+    } else { wl_error(ctx,"E type must be dasher|boss|shooter|sword",line); return; }
+
     int i=*ctx->enemy_count;
     double py = ctx->cfg->world_h - y - ch;  // physic top-left y
     set_physic_base(&ctx->enemies[i].base,
@@ -161,7 +167,7 @@ static void load_tag_E(wl_ctx* ctx, const char* line){
     ctx->enemies[i].patrol_timer=60;
     ctx->enemies[i].patrol_x_min=pmin; ctx->enemies[i].patrol_x_max=pmax;
     ctx->enemies[i].patrol_y=py+ch/2.0;  // physic center y
-    ctx->enemies[i].dash_timer=dt; ctx->enemies[i].dashing=0;
+    ctx->enemies[i].action_timer=dt; ctx->enemies[i].dashing=0;
     ctx->enemies[i].dash_vx=dvx;   ctx->enemies[i].hp=hp;
     (*ctx->enemy_count)++;
 }

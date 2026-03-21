@@ -164,9 +164,10 @@ T 11.0 120.0 3.0 0.5 solid 0
 T 15.0 122.5 2.5 0.5 solid 0
 T 10.0 125.0 3.0 0.5 solid 0
 T 16 126 3.0 0.5 solid 0
+
 # --- win platform ---
 T 5.6 127 8.8 0.6 solid 0
-D 8.0 127.3 4.0 6.0 0xFFCC00FF teleporter
+D 9.6 127.6 1.2 1.8 0xFFCC00FF teleporter
 
 # --- enemies (bottom-left, y from ground) ---
 E 8.04 7.5 dasher 6.2 11.8
