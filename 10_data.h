@@ -57,7 +57,19 @@ struct decor_data decors[DECOR_COUNT];
 struct chest_data chests[CHEST_COUNT];
 struct projectile_data projectiles[PROJ_COUNT];
 struct pobj_data  pobjs[POBJ_COUNT];
-
+struct {
+    sound_data jump;
+    sound_data walk;
+    sound_data dash;
+    sound_data buff;
+    sound_data chest;
+    sound_data hit;
+    sound_data hitted;
+    sound_data die;
+    sound_data win;
+    sound_data coin;
+    sound_data theme;
+} sfx;
 int game_state;
 int menu_sub_state;
 int terrain_count_actual;

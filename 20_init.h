@@ -125,6 +125,21 @@ int init(){
     player.respawn_x=10.0;
     player.respawn_y=138.0;
 
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
+        printf("SDL_mixer Error: %s\n", Mix_GetError());
+    }
+
+
+    load_sound(&sfx.jump,   "assets/jump.mp3");
+    load_sound(&sfx.dash,   "assets/dash.mp3");
+    load_sound(&sfx.buff,   "assets/buff.mp3");
+    load_sound(&sfx.chest,  "assets/chest.mp3");
+    load_sound(&sfx.hit,    "assets/hit.mp3");
+    load_sound(&sfx.hitted, "assets/hitted.mp3");
+    load_sound(&sfx.die,    "assets/die.mp3");
+    load_sound(&sfx.win,    "assets/win.mp3");
+    load_sound(&sfx.coin,   "assets/coin.mp3");
+    load_sound(&sfx.theme,   "assets/theme.mp3");
     reset_game();
     return 1;
 }
