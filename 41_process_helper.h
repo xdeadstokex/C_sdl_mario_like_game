@@ -14,6 +14,7 @@ static inline double dsign(double v){ return v>0?1.0:v<0?-1.0:0.0; }
 // forward declaration — defined in 20_init.h
 void reset_player();
 void reload_world();
+void reset_game();
 //###############################################
 // PLAYER SENSORS
 // 4 thin rects flush on each player face.
@@ -141,7 +142,11 @@ void process_player_movement(double dt){
     int ml=player.input_move_left, mr=player.input_move_right;
 
     if(player.speed_boost_timer>0) player.speed_boost_timer--;
-    double cur_speed=(player.speed_boost_timer>0)?cfg.move_speed*1.5:cfg.move_speed;
+    if(player.slow_timer > 0) player.slow_timer--;
+
+    double cur_speed = cfg.move_speed;
+    if(player.speed_boost_timer > 0) cur_speed *= 1.5;
+    if(player.slow_timer > 0) cur_speed *= 0.5;
 
     // GOD MODE — free fly, bypass all physics
     if(player.god_mode){
@@ -183,6 +188,7 @@ void process_player_movement(double dt){
     // FIREBALL SHOOT — F key
     if(player.input_shoot && player.fireball_ammo>0){
         player.input_shoot = 0;  // consumed
+        play_sound(&sfx.fireball);
         player.fireball_ammo--;
         for(int _i=0;_i<PROJ_COUNT;_i++){
             if(!projectiles[_i].active){
@@ -382,23 +388,34 @@ static inline void enemy_vs_player(struct enemy_data* e, double px, double py){
 
     if(stomp){
         play_sound(&sfx.hit);
-        if(--e->hp<=0){ e->active=0; e->stun_timer=(e->type==ENEMY_BOSS)?99999:60*cfg.tps/20; }
-        else           { e->active=0; e->stun_timer=(e->type==ENEMY_BOSS)?80*cfg.tps/20:60*cfg.tps/20; }
+        if(--e->hp<=0){ 
+            e->active=0; 
+            e->stun_timer = 999999; 
+        }
+        else{ 
+            e->active=0; 
+            e->stun_timer=(e->type==ENEMY_BOSS)?80*cfg.tps/20:60*cfg.tps/20;
+            if(e->type == ENEMY_SWORD){
+                e->active = 1;
+                e->stun_timer = 0;
+            }
+        }
         player.base.vy=(player.jump_boost_timer>0)?cfg.jump_boost_vy*0.7:cfg.jump_vy*0.7;
-    } else if(player.invincible==0){
-        
+    } 
+    else if(player.invincible==0){  
         player.invincible=cfg.invincible_frames;
         player.hp--;
         play_sound(&sfx.hitted);
         if(player.hp<=0){
             play_sound(&sfx.die);
-            reset_player();
+            reset_game();
         } else {
             double push=dsign(px-e->base.x); if(push==0) push=1;
             double force, lift;
             if(e->type == ENEMY_BOSS){
-                force = 5.0;
-                lift = -4.5;
+                force = 15.0;
+                lift = -7.0;
+                player.slow_timer = 100 * cfg.tps/20;
             }
             else if(e->type == ENEMY_SWORD){
                 force = 12.0;
@@ -458,7 +475,11 @@ void process_projectiles(double dt){
                 if(player.invincible == 0){
                     player.invincible = cfg.invincible_frames;
                     player.hp--;
-                    if(player.hp <= 0) reset_player();
+                    play_sound(&sfx.hitted);
+                    if(player.hp <= 0){
+                        play_sound(&sfx.die);
+                        reset_game();
+                    }
                     else{
                         player.base.vx = pr->dir*5.0;
                         player.base.vy = -3.0;
@@ -479,10 +500,15 @@ void process_projectiles(double dt){
                 
                 if(--e->hp<=0){
                     e->active=0;
-                    e->stun_timer = (e->type==ENEMY_BOSS) ? 99999 : 99999;
-                } else {
+                    e->stun_timer = 999999;
+                } 
+                else {
                     e->active=0;
                     e->stun_timer = (e->type==ENEMY_BOSS) ? 100*cfg.tps/20 : 600*cfg.tps/20;
+                    if(e->type == ENEMY_SWORD){
+                        e->active = 1;
+                        e->stun_timer = 0;
+                    }
                 }
                 break;
             }
@@ -497,14 +523,27 @@ void process_enemies(double dt){
     double px=player.base.x, py=player.base.y;
     for(int i=0;i<enemy_count_actual;i++){
         struct enemy_data* e=&enemies[i];
+
+        if(e->hp <= 0 && e->type != ENEMY_BOSS && e->type != ENEMY_WEATHER_BOSS) {
+            double trigger_y = e->base.y + 20.0;
+            if(trigger_y > cfg.world_h - 2.0) trigger_y = cfg.world_h - 2.0;
+
+            if(py > trigger_y && py > e->base.y) {
+                e->hp = (e->type == ENEMY_SWORD || e->type == ENEMY_MAGE) ? 2 : 1;
+                e->active = 1;
+                e->stun_timer = 0;
+                e->base.x = (e->patrol_x_min + e->patrol_x_max) / 2.0;
+            }
+        }
+
         if(!e->active){
-            if(e->type==ENEMY_BOSS&&e->hp<=0) continue;
-            if(--e->stun_timer<=0){
-                e->active=1;
-                // e->base.x=(e->patrol_x_min+e->patrol_x_max)*0.5;
+            if((e->type == ENEMY_BOSS || e->type == ENEMY_WEATHER_BOSS) && e->hp <= 0) continue; 
+            if(--e->stun_timer <= 0 && e->hp > 0){
+                e->active = 1;
             }
             continue;
         }
+
         if(!e->dashing) enemy_update_patrol(e,dt);
 
         if(e->type == ENEMY_DASHER || e->type == ENEMY_BOSS){
@@ -529,13 +568,16 @@ void process_enemies(double dt){
             }
         } 
         else if(e->type == ENEMY_MAGE){
-            // Đã fix lỗi đếm giờ (chỉ trừ 1 lần mỗi frame)
             if(e->action_timer > 0) e->action_timer--;
             
             if(e->action_timer <= 0){
                 double dx = px - e->base.x;
                 double dy = py - e->base.y;
-                if(dx*dx + dy*dy < 144){
+                double max_dx = 6.0 + dy*0.7;
+                if(max_dx < 2.0) max_dx = 2.0;
+                if(max_dx > 14.0) max_dx = 14.0;
+                int in_range = (fabs(dx) < max_dx) && (dy > -8.0) && (dy < 12.0);
+                if(in_range){
                     for(int k = 0; k < terrain_count_actual; k++){
                         if(terrains[k].broken) continue;
                         if(terrains[k].warning_timer > 0) continue;
@@ -561,12 +603,13 @@ void process_enemies(double dt){
         }
         else if(e->type == ENEMY_WEATHER_BOSS){
             if(--e->action_timer <= 0){
-                e->action_timer = 100 * cfg.tps/20;
-                e->dash_vx = -e->dash_vx;
+                e->action_timer = (200 + rand()%200)*cfg.tps/20;
+                int random_dir = (rand()%2 == 0) ? 1 : -1;
+                e->dash_vx = 20.0 * random_dir;
             }
             double dx = px - e->base.x, dy = py - e->base.y;
             if(dx*dx + dy*dy < 324.0) {
-                player.base.vx += e->dash_vx * dt;
+                player.base.vx += e->dash_vx * 0.35 * dt;
             }
         }
         

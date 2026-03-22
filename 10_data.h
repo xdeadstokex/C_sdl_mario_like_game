@@ -69,6 +69,7 @@ struct {
     sound_data win;
     sound_data coin;
     sound_data theme;
+    sound_data fireball;
 } sfx;
 int game_state;
 int menu_sub_state;

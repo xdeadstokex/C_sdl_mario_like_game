@@ -164,11 +164,27 @@ void draw_player_sensors(){
 // ENEMIES
 //###############################################
 void draw_enemies(){
+    static double last_time = -1.0;
+    double current_time = tps_timer.time;
+    double dt_render = 0.0;
+    if(last_time != current_time) {
+        dt_render = (last_time < 0) ? 0.0 : (current_time - last_time);
+        if(dt_render > 0.1) dt_render = 0.1;
+        last_time = current_time;
+    }
+    
+    static double leaf_ox[ENEMY_COUNT] = {0};
+    static double leaf_oy[ENEMY_COUNT] = {0};
+
     for(int i=0;i<enemy_count_actual;i++){
         struct enemy_data* e=&enemies[i];
         int esx=SX(e->base.x), esy=SY(e->base.y);
-        if(esy<-100||esy>(int)cfg.screen_h+100) continue;
+
+        int cull_margin = (e->type == ENEMY_WEATHER_BOSS) ? 1800 : 100;
+        if(esy < -cull_margin || esy > (int)cfg.screen_h + cull_margin) continue;
+
         int ew=SP(e->base.col_w), eh=SP(e->base.col_h);
+
         if(!e->active){
             draw_rect_centered(&window,esx,esy,ew,eh,0x666666FF);
             draw_line(&window,esx-ew/5,esy-eh/5,esx+ew/5,esy+eh/5,0x222222FF);
@@ -189,11 +205,61 @@ void draw_enemies(){
         draw_rect_centered(&window,esx-ew/5,esy-eh/5,eye_s,eye_s,0xFFFF00FF);
         draw_rect_centered(&window,esx+ew/5,esy-eh/5,eye_s,eye_s,0xFFFF00FF);
 
-        if((e->type==ENEMY_BOSS || e->type==ENEMY_WEATHER_BOSS) && e->hp>0){
-            int max_hp = (e->type==ENEMY_BOSS) ? 5 : 8; 
-            int bw=SP(0.8),bh=SP(0.1),bx=esx-SP(0.4),by=esy-eh/2-SP(0.16);
-            draw_rect(&window,bx,by,bw,bh,0x333333FF);
-            draw_rect(&window,bx,by,bw*e->hp/max_hp,bh,0xFF3333FF);
+        if(e->hp > 0){
+            int max_hp = 1;
+            if(e->type == ENEMY_BOSS) max_hp = 5;
+            else if(e->type == ENEMY_WEATHER_BOSS) max_hp = 4;
+            else if(e->type == ENEMY_SWORD || e->type == ENEMY_MAGE) max_hp = 2;
+            
+            int bw, bh, bx, by;
+            if(e->type == ENEMY_BOSS || e->type == ENEMY_WEATHER_BOSS || e->type == ENEMY_MAGE){
+                bw=SP(0.8); bh=SP(0.1); bx=esx-SP(0.4); by=esy-eh/2-SP(0.16);
+            }
+            else{
+                bw=SP(0.5); bh=SP(0.05); bx=esx-SP(0.25); by=esy-eh/2-SP(0.16);
+            }
+            
+            draw_rect(&window, bx, by, bw, bh, 0x333333FF);
+            draw_rect(&window, bx, by, bw * e->hp / max_hp, bh, 0xFF3333F0);
+        }
+
+        if(e->type == ENEMY_WEATHER_BOSS && e->hp > 0) {
+            
+            leaf_ox[i] += (e->dash_vx * 0.6) * dt_render; 
+            leaf_oy[i] += 2.0 * dt_render;                
+            
+            double boss_x = e->base.x;
+            double boss_y = e->base.y;
+
+            for(int k = 0; k < 120; k++) { 
+                
+                double noise_x = fmod(fabs(sin(k * 99.123) * 12345.67), 36.0); 
+                double noise_y = fmod(fabs(cos(k * 88.321) * 76543.21), 36.0); 
+                
+                double move_x = noise_x + leaf_ox[i]; 
+                double move_y = noise_y + leaf_oy[i]; 
+                
+                move_x = fmod(move_x, 36.0);
+                if(move_x < 0) move_x += 36.0;
+                move_x -= 18.0;
+                
+                move_y = fmod(move_y, 36.0);
+                if(move_y < 0) move_y += 36.0;
+                move_y -= 18.0;
+                
+                if(move_x*move_x + move_y*move_y < 324.0) {
+                    int psx = SX(boss_x + move_x);
+                    int psy = SY(boss_y + move_y);
+                    
+                    unsigned int leaf_col;
+                    if(k % 3 == 0)      leaf_col = 0x228B22FF; 
+                    else if(k % 3 == 1) leaf_col = 0x32CD32FF; 
+                    else                leaf_col = 0x8B4513FF; 
+                    
+                    if(k % 2 == 0) draw_rect(&window, psx, psy, 10, 6, leaf_col); 
+                    else           draw_rect(&window, psx, psy, 6, 10, leaf_col); 
+                }
+            }
         }
     }
 }

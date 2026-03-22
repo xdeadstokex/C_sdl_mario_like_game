@@ -191,6 +191,7 @@ struct player_data {
     double respawn_x, respawn_y;
     int    jump_boost_timer;
     int speed_boost_timer;
+    int slow_timer;
     int    score;
     int    last_move_dir;
     int    hp;

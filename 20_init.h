@@ -22,6 +22,7 @@ void reset_player(){
     player.invincible=0; player.god_mode=0;
     player.last_move_dir=1; player.jump_boost_timer=0;
     player.speed_boost_timer = 0;
+    player.slow_timer = 0;
     player.hp = 5;
     player.fireball_ammo = 0;
     // init sensors from starting position so first frame collision is valid
@@ -142,6 +143,7 @@ int init(){
     load_sound(&sfx.win,    "assets/win.mp3");
     load_sound(&sfx.coin,   "assets/coin.mp3");
     load_sound(&sfx.theme,   "assets/theme.mp3");
+    load_sound(&sfx.fireball, "assets/fireball.mp3");
     reset_game();
     return 1;
 }
