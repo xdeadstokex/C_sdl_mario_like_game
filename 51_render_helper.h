@@ -39,18 +39,19 @@ void draw_background(){
     draw_rect(&window,0,0,(int)cfg.screen_w,(int)cfg.screen_h,bg);
 
     if(h_m<40){
+        int sw=(int)cfg.screen_w, sh=(int)cfg.screen_h;
         double para=0.3;
         int mx=(int)(camera.x_px*para);
         unsigned int mc=lerp_color(0x444450FF,bg,0.5);
         for(int row=0;row<20;row++){
-            int rw=300-row*14, rx=100-mx%(int)cfg.screen_w-rw/2+row*7;
-            int ry=(int)cfg.screen_h-300+row*13;
-            if(ry>0&&ry<(int)cfg.screen_h) draw_rect(&window,rx,ry,rw>0?rw:0,14,mc);
+            int rw=sw/4-row*14, rx=sw/12-mx%sw-rw/2+row*7;
+            int ry=sh-sh*38/100+row*13;
+            if(ry>0&&ry<sh) draw_rect(&window,rx,ry,rw>0?rw:0,14,mc);
         }
         for(int row=0;row<20;row++){
-            int rw=280-row*13, rx=800-mx%(int)cfg.screen_w-rw/2+row*6;
-            int ry=(int)cfg.screen_h-280+row*12;
-            if(ry>0&&ry<(int)cfg.screen_h) draw_rect(&window,rx,ry,rw>0?rw:0,13,mc);
+            int rw=sw*23/100-row*13, rx=sw*67/100-mx%sw-rw/2+row*6;
+            int ry=sh-sh*35/100+row*12;
+            if(ry>0&&ry<sh) draw_rect(&window,rx,ry,rw>0?rw:0,13,mc);
         }
     }
 }
@@ -325,20 +326,26 @@ void draw_projectiles(){
 //###############################################
 void draw_hud(){
     char buf[128];
-    // --- coins top-left ---
+    int sw=(int)cfg.screen_w, sh=(int)cfg.screen_h;
+    int cx=sw/2;
+    int pad=sw*7/1000;    // ~8px at 1200
+    int row_h=sh*3/100;   // ~24px at 800
+    int bar_w=sw*11/100;  // ~130px at 1200
+
+    // --- top-left stats ---
+    draw_rect(&window, pad, pad,           bar_w, row_h, 0x00000088);
     sprintf(buf, "COINS %d", player.score);
-    draw_rect(&window, 8, 8, 130, 24, 0x00000088);
-    draw_text(&window, &font, buf, 12, 12, 2,2,2,2, 0xFFD700FF);
+    draw_text(&window, &font, buf, pad+4, pad+4, 2,2,2,2, 0xFFD700FF);
 
+    draw_rect(&window, pad, pad+row_h+4,   bar_w, row_h, 0x00000088);
     sprintf(buf, "HP: %d", player.hp);
-    draw_rect(&window, 8, 36, 130, 24, 0x00000088);
-    draw_text(&window, &font, buf, 12, 40, 2,2,2,2, 0xFF3333FF); 
+    draw_text(&window, &font, buf, pad+4, pad+row_h+8, 2,2,2,2, 0xFF3333FF);
 
+    draw_rect(&window, pad, pad+row_h*2+8, bar_w, row_h, 0x00000088);
     sprintf(buf, "FIRE: %d", player.fireball_ammo);
-    draw_rect(&window, 8, 64, 130, 24, 0x00000088);
-    draw_text(&window, &font, buf, 12, 68, 2,2,2,2, 0xFF6600FF); 
+    draw_text(&window, &font, buf, pad+4, pad+row_h*2+12, 2,2,2,2, 0xFF6600FF);
 
-    // --- TOP-CENTER BLOCK ---
+    // --- top-center block ---
     double h_m = cfg.world_h - player.base.y;
     if(h_m<0) h_m=0;
     if(h_m>cfg.world_h) h_m=cfg.world_h;
@@ -346,40 +353,36 @@ void draw_hud(){
     const char* ns = (h_m > cfg.world_h*0.70)?"N":(h_m < cfg.world_h*0.20)?"S":"-";
     const char* ew = (x_m < cfg.world_w*0.20)?"W":(x_m > cfg.world_w*0.70)?"E":"-";
     sprintf(buf, "%s%s  X%.1fm  Y%.1fm", ns, ew, x_m, h_m);
-    int cx = (int)cfg.screen_w/2;
-    int block_w = 260, block_h = 46;
-    int block_x = cx - block_w/2;
-    draw_rect(&window, block_x, 6, block_w, block_h, 0x00000099);
-    draw_text_centered(&window, &font, buf,
-                       cx, 10, 1,1,2,1, 0xAADDFFFF);
+    int blk_w=sw*22/100, blk_h=sh*58/1000;  // ~260x46 at 1200x800
+    int blk_x=cx-blk_w/2;
+    draw_rect(&window, blk_x, 6, blk_w, blk_h, 0x00000099);
+    draw_text_centered(&window, &font, buf, cx, 10, 1,1,2,1, 0xAADDFFFF);
     sprintf(buf, "%.0fm", h_m);
-    draw_text_centered(&window, &font, buf,
-                       cx, 24, 2,2,2,2, 0xFFFFFFFF);
-    int bw=160, bh=7, bx=cx-bw/2, by=40;
-    draw_rect(&window, bx, by, bw, bh, 0x333333FF);
-    draw_rect(&window, bx, by, (int)(bw*h_m/cfg.world_h), bh, 0x00FF88FF);
-    draw_rect(&window, bx, by, bw, 2, 0xFFFFFF33);
+    draw_text_centered(&window, &font, buf, cx, 24, 2,2,2,2, 0xFFFFFFFF);
+    int pbw=sw*13/100, pbh=sh*9/1000, pbx=cx-pbw/2, pby=40;  // progress bar
+    draw_rect(&window, pbx, pby, pbw, pbh, 0x333333FF);
+    draw_rect(&window, pbx, pby, (int)(pbw*h_m/cfg.world_h), pbh, 0x00FF88FF);
+    draw_rect(&window, pbx, pby, pbw, 2, 0xFFFFFF33);
 
-    int hud_y = 56;
+    // --- boost badges ---
+    int hud_y=blk_h+10;
     if(player.jump_boost_timer>0){
-        draw_rect(&window, cx-80, hud_y, 70, 18, 0xFFAA0099);
-        draw_text_centered(&window, &font, "JUMP", cx-45, hud_y+10, 1,1,2,1, 0xFFFFFFFF);
+        draw_rect(&window, cx-sw*7/100, hud_y, sw*6/100, sh*23/1000, 0xFFAA0099);
+        draw_text_centered(&window, &font, "JUMP", cx-sw*4/100, hud_y+sh*14/1000, 1,1,2,1, 0xFFFFFFFF);
     }
     if(player.speed_boost_timer>0){
-        draw_rect(&window, cx+10, hud_y, 70, 18, 0x00AAFF99);
-        draw_text_centered(&window, &font, "SPEED", cx+45, hud_y+10, 1,1,2,1, 0xFFFFFFFF);
+        draw_rect(&window, cx+sw*1/100, hud_y, sw*6/100, sh*23/1000, 0x00AAFF99);
+        draw_text_centered(&window, &font, "SPEED", cx+sw*4/100, hud_y+sh*14/1000, 1,1,2,1, 0xFFFFFFFF);
     }
 
+    // --- top-right badges ---
     if(player.edge_grab){
-        int sw = (int)cfg.screen_w;
-        // Chiều rộng hộp là 80, căn lề phải 8 pixel -> tọa độ X = sw - 80 - 8 = sw - 88
-        draw_rect(&window, sw - 68, 20, 60, 20, 0x00CED188); 
-        // Lùi vào trong hộp 4 pixel để viết chữ -> tọa độ X = sw - 88 + 4 = sw - 84
-        draw_text(&window, &font, "GRAB", sw - 54, 26, 1.2, 1.2, 2, 1, 0xFFFFFFFF);
+        draw_rect(&window, sw-sw*6/100, sh*25/1000, sw*5/100, sh*25/1000, 0x00CED188);
+        draw_text(&window, &font, "GRAB", sw-sw*45/1000, sh*32/1000, 1.2,1.2,2,1, 0xFFFFFFFF);
     }
     if(player.god_mode){
-        draw_rect(&window, (int)cfg.screen_w-110, 8, 100, 24, 0xFF880099);
-        draw_text(&window, &font, "GOD", (int)cfg.screen_w-104, 12, 2,2,2,2, 0xFFFFFFFF);
+        draw_rect(&window, sw-sw*92/1000, pad, sw*83/1000, row_h, 0xFF880099);
+        draw_text(&window, &font, "GOD", sw-sw*87/1000, pad+4, 2,2,2,2, 0xFFFFFFFF);
     }
 }
 
@@ -396,45 +399,47 @@ static void draw_btn(int x,int y,int w,int h,const char* lbl,unsigned int col){
 
 void draw_menu(){
     int sw=(int)cfg.screen_w, sh=(int)cfg.screen_h;
+    int cx=sw/2;
     draw_rect(&window,0,0,sw,sh,0x0A0F1AFF);
     for(int i=0;i<40;i++){
         int sx2=(i*97+13)%sw, sy2=(i*137+41)%sh, sr=2+(i%3);
         draw_rect_centered(&window,sx2,sy2,sr,sr,0xFFFFFF44);
     }
     for(int row=0;row<25;row++){
-        int rw=500-row*18,rx=sw/2-rw/2+row*9,ry=sh-350+row*13;
+        int rw=sw*5/12-row*18, rx=cx-rw/2+row*9, ry=sh-sh*44/100+row*13;
         if(ry>0&&ry<sh&&rw>0) draw_rect(&window,rx,ry,rw,14,0x1E2A3AFF);
     }
-    draw_text_centered(&window,&font,"VERTICAL",sw/2,140,5,5,3,5,0xC8DCF0FF);
-    draw_text_centered(&window,&font,"CLIMBER", sw/2,198,5,5,3,5,0x88BBDDFF);
-    draw_text_centered(&window,&font,"REACH THE SUMMIT",sw/2,262,1,1,2,1,0x7090B0FF);
+    draw_text_centered(&window,&font,"VERTICAL",cx,sh*18/100,5,5,3,5,0xC8DCF0FF);
+    draw_text_centered(&window,&font,"CLIMBER", cx,sh*25/100,5,5,3,5,0x88BBDDFF);
+    draw_text_centered(&window,&font,"REACH THE SUMMIT",cx,sh*33/100,1,1,2,1,0x7090B0FF);
+    int bw=sw/6, bh=sh*6/100, bx=cx-bw/2;
     if(menu_sub_state==0){
-        draw_btn(sw/2-100,320,200,45,"NEW GAME",0x1A4A2AFF);
-        draw_btn(sw/2-100,380,200,45,"OPTIONS", 0x1A2A4AFF);
-        draw_btn(sw/2-100,440,200,45,"ABOUT",   0x2A1A4AFF);
-        draw_btn(sw/2-100,500,200,45,"EXIT",    0x4A1A1AFF);
-        draw_text_centered(&window,&font,"ENTER FOR NEW GAME",sw/2,565,1,1,2,1,0x445566FF);
+        draw_btn(bx,sh*40/100,bw,bh,"NEW GAME",0x1A4A2AFF);
+        draw_btn(bx,sh*48/100,bw,bh,"OPTIONS", 0x1A2A4AFF);
+        draw_btn(bx,sh*56/100,bw,bh,"ABOUT",   0x2A1A4AFF);
+        draw_btn(bx,sh*64/100,bw,bh,"EXIT",    0x4A1A1AFF);
+        draw_text_centered(&window,&font,"ENTER FOR NEW GAME",cx,sh*72/100,1,1,2,1,0x445566FF);
     } else if(menu_sub_state==1){
-        draw_text_centered(&window,&font,"CONTROLS",sw/2,310,2,2,2,2,0xC8DCF0FF);
-        int lx=sw/2-200,ly=360,ls=18;
-        draw_text(&window,&font,"A D      MOVE",         lx,ly,    1,1,2,1,0xFFFFFFFF);
-        draw_text(&window,&font,"SPACE    JUMP",         lx,ly+ls, 1,1,2,1,0xFFFFFFFF);
-        draw_text(&window,&font,"SHIFT    DASH",         lx,ly+ls*2,1,1,2,1,0xFFFFFFFF);
-        draw_text(&window,&font,"A OR D   WALL GRAB",   lx,ly+ls*3,1,1,2,1,0xFFFFFFFF);
-        draw_text(&window,&font,"G        GOD MODE",    lx,ly+ls*4,1,1,2,1,0xFFFFFFFF);
-        draw_text(&window,&font,"K        RELOAD WORLD",lx,ly+ls*5,1,1,2,1,0xFFFFFFFF);
-        draw_text(&window,&font,"ESC      PAUSE",       lx,ly+ls*6,1,1,2,1,0xFFFFFFFF);
-        draw_text(&window,&font,"ESC      BACK",        lx,ly+ls*8,1,1,2,1,0x8899AAFF);
+        draw_text_centered(&window,&font,"CONTROLS",cx,sh*39/100,2,2,2,2,0xC8DCF0FF);
+        int lx=cx-sw/6, ly=sh*45/100, ls=sh*23/1000;
+        draw_text(&window,&font,"A D      MOVE",         lx,ly,       1,1,2,1,0xFFFFFFFF);
+        draw_text(&window,&font,"SPACE    JUMP",         lx,ly+ls,    1,1,2,1,0xFFFFFFFF);
+        draw_text(&window,&font,"SHIFT    DASH",         lx,ly+ls*2,  1,1,2,1,0xFFFFFFFF);
+        draw_text(&window,&font,"A OR D   WALL GRAB",   lx,ly+ls*3,  1,1,2,1,0xFFFFFFFF);
+        draw_text(&window,&font,"G        GOD MODE",    lx,ly+ls*4,  1,1,2,1,0xFFFFFFFF);
+        draw_text(&window,&font,"K        RELOAD WORLD",lx,ly+ls*5,  1,1,2,1,0xFFFFFFFF);
+        draw_text(&window,&font,"ESC      PAUSE",       lx,ly+ls*6,  1,1,2,1,0xFFFFFFFF);
+        draw_text(&window,&font,"ESC      BACK",        lx,ly+ls*8,  1,1,2,1,0x8899AAFF);
     } else {
-        draw_text_centered(&window,&font,"ABOUT",sw/2,310,2,2,2,2,0xC8DCF0FF);
-        int lx=sw/2-200,ly=360,ls=20;
-        draw_text(&window,&font,"MADE WITH SDL2 AND C",  lx,ly,    1,1,2,1,0xFFFFFFFF);
-        draw_text(&window,&font,"CLIMB 100M TO WIN",     lx,ly+ls, 1,1,2,1,0xFFFFFFFF);
-        draw_text(&window,&font,"STOMP ENEMIES",         lx,ly+ls*2,1,1,2,1,0xFFFFFFFF);
-        draw_text(&window,&font,"BREAK CRACKED ROCKS",  lx,ly+ls*3,1,1,2,1,0xFFFFFFFF);
-        draw_text(&window,&font,"COLLECT GOLD COINS",   lx,ly+ls*4,1,1,2,1,0xFFFFFFFF);
-        draw_text(&window,&font,"GET STAR FOR BOOST",   lx,ly+ls*5,1,1,2,1,0xFFFFFFFF);
-        draw_text(&window,&font,"ESC  BACK",            lx,ly+ls*7,1,1,2,1,0x8899AAFF);
+        draw_text_centered(&window,&font,"ABOUT",cx,sh*39/100,2,2,2,2,0xC8DCF0FF);
+        int lx=cx-sw/6, ly=sh*45/100, ls=sh*25/1000;
+        draw_text(&window,&font,"MADE WITH SDL2 AND C",  lx,ly,      1,1,2,1,0xFFFFFFFF);
+        draw_text(&window,&font,"CLIMB 100M TO WIN",     lx,ly+ls,   1,1,2,1,0xFFFFFFFF);
+        draw_text(&window,&font,"STOMP ENEMIES",         lx,ly+ls*2, 1,1,2,1,0xFFFFFFFF);
+        draw_text(&window,&font,"BREAK CRACKED ROCKS",  lx,ly+ls*3, 1,1,2,1,0xFFFFFFFF);
+        draw_text(&window,&font,"COLLECT GOLD COINS",   lx,ly+ls*4, 1,1,2,1,0xFFFFFFFF);
+        draw_text(&window,&font,"GET STAR FOR BOOST",   lx,ly+ls*5, 1,1,2,1,0xFFFFFFFF);
+        draw_text(&window,&font,"ESC  BACK",            lx,ly+ls*7, 1,1,2,1,0x8899AAFF);
     }
 }
 
@@ -466,23 +471,29 @@ void draw_chests(){
 // WIN SCREEN
 //###############################################
 void draw_win_screen(){
-    int sw=(int)cfg.screen_w,sh=(int)cfg.screen_h;
+    int sw=(int)cfg.screen_w, sh=(int)cfg.screen_h;
+    int cx=sw/2;
+    int bw=sw/6, bh=sh*6/100, bx=cx-bw/2;
     draw_rect(&window,0,0,sw,sh,0x00000099);
-    draw_text_centered(&window,&font,"SUMMIT REACHED",sw/2,220,4,4,3,4,0xFFFF88FF);
+    draw_text_centered(&window,&font,"SUMMIT REACHED",cx,sh*28/100,4,4,3,4,0xFFFF88FF);
     char buf[64]; sprintf(buf,"COINS %d",player.score);
-    draw_text_centered(&window,&font,buf,sw/2,330,2,2,2,2,0xFFD700FF);
-    draw_btn(sw/2-100,450,200,50,"PLAY AGAIN",0x1A4A2AFF);
-    draw_text_centered(&window,&font,"SPACE TO REPLAY",sw/2,530,1,1,2,1,0x667788FF);
+    draw_text_centered(&window,&font,buf,cx,sh*42/100,2,2,2,2,0xFFD700FF);
+    draw_btn(bx,sh*50/100,bw,bh,"PLAY AGAIN",0x1A4A2AFF);
+    draw_btn(bx,sh*58/100,bw,bh,"MAIN MENU", 0x2A2A4AFF);
+    draw_text_centered(&window,&font,"SPACE TO REPLAY",cx,sh*68/100,1,1,2,1,0x667788FF);
 }
 
 //###############################################
 // PAUSE SCREEN
 //###############################################
 void draw_pause_screen(){
-    int sw=(int)cfg.screen_w,sh=(int)cfg.screen_h;
+    int sw=(int)cfg.screen_w, sh=(int)cfg.screen_h;
+    int cx=sw/2;
+    int bw=sw/6, bh=sh*6/100, bx=cx-bw/2;
     draw_rect(&window,0,0,sw,sh,0x00000099);
-    draw_text_centered(&window,&font,"PAUSED",sw/2,sh/2-20,4,4,2,4,0xFFFFFFFF);
-    draw_text_centered(&window,&font,"ESC TO RESUME",sw/2,sh/2+40,1,1,2,1,0x8899AAFF);
+    draw_text_centered(&window,&font,"PAUSED",cx,sh*42/100,4,4,2,4,0xFFFFFFFF);
+    draw_text_centered(&window,&font,"ESC TO RESUME",cx,sh*50/100,1,1,2,1,0x8899AAFF);
+    draw_btn(bx,sh*56/100,bw,bh,"MAIN MENU",0x2A2A4AFF);
 }
 
 #endif

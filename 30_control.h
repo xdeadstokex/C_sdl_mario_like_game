@@ -27,6 +27,10 @@ int control(){
         if(window.mouse_click_right)  mouse_hold_right  = 1;
         if(window.mouse_click_middle) mouse_hold_middle = 1;
         if(window.mouse_motion)       mouse_motion      = 1;
+		if(window.resize_signal){
+			cfg.screen_w = (double)window.w;
+			cfg.screen_h = (double)window.h;
+		}
     }
 
     mouse.motion = mouse_motion;
@@ -72,6 +76,7 @@ int control(){
     update_signal(&kb.key_alt_left,  window.key_alt_l);
     update_signal(&kb.key_alt_right, window.key_alt_r);
 
+
     // MENU
     if(game_state == STATE_MENU){
         if(menu_sub_state == 0){
@@ -81,10 +86,12 @@ int control(){
             }
             if(mouse.left.click){
                 int mx=mouse.x, my=mouse.y;
-                if(check_point_in_box_2d(mx,my,500,320,200,45)){ game_state=STATE_PLAY; reset_game(); }
-                if(check_point_in_box_2d(mx,my,500,380,200,45)){ menu_sub_state=1; }
-                if(check_point_in_box_2d(mx,my,500,440,200,45)){ menu_sub_state=2; }
-                if(check_point_in_box_2d(mx,my,500,500,200,45)){ return 0; }
+                int sw=(int)cfg.screen_w, sh=(int)cfg.screen_h;
+                int bw=sw/6, bh=sh*6/100, bx=sw/2-bw/2;
+                if(check_point_in_box_2d(mx,my,bx,sh*40/100,bw,bh)){ game_state=STATE_PLAY; reset_game(); }
+                if(check_point_in_box_2d(mx,my,bx,sh*48/100,bw,bh)){ menu_sub_state=1; }
+                if(check_point_in_box_2d(mx,my,bx,sh*56/100,bw,bh)){ menu_sub_state=2; }
+                if(check_point_in_box_2d(mx,my,bx,sh*64/100,bw,bh)){ return 0; }
             }
         } else {
             if(kb.key_escape.click) menu_sub_state=0;
@@ -98,12 +105,24 @@ int control(){
             game_state = (game_state==STATE_PLAY) ? STATE_PAUSE : STATE_PLAY;
     }
 
+    // PAUSE MENU BUTTON
+    if(game_state==STATE_PAUSE && mouse.left.click){
+        int sw=(int)cfg.screen_w, sh=(int)cfg.screen_h;
+        int bw=sw/6, bh=sh*6/100, bx=sw/2-bw/2;
+        if(check_point_in_box_2d(mouse.x,mouse.y,bx,sh*56/100,bw,bh)){
+            game_state=STATE_MENU; menu_sub_state=0;
+        }
+    }
+
     // WIN SCREEN
     if(game_state == STATE_WIN){
         if(kb.key_space.click){ game_state=STATE_PLAY; reset_game(); }
         if(mouse.left.click){
             int mx=mouse.x, my=mouse.y;
-            if(check_point_in_box_2d(mx,my,500,450,200,50)){ game_state=STATE_PLAY; reset_game(); }
+            int sw=(int)cfg.screen_w, sh=(int)cfg.screen_h;
+            int bw=sw/6, bh=sh*6/100, bx=sw/2-bw/2;
+            if(check_point_in_box_2d(mx,my,bx,sh*50/100,bw,bh)){ game_state=STATE_PLAY; reset_game(); }
+            if(check_point_in_box_2d(mx,my,bx,sh*58/100,bw,bh)){ game_state=STATE_MENU; menu_sub_state=0; }
         }
         return 1;
     }
