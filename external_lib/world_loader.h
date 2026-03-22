@@ -151,7 +151,7 @@ static void load_tag_E(wl_ctx* ctx, const char* line){
     if(!strcmp(ts,"dasher")){
         etype=ENEMY_DASHER; cw=0.32; ch=0.32; dt=90; dvx=3.5; hp=1;
     } else if(!strcmp(ts,"boss")){
-        etype=ENEMY_BOSS;   cw=0.64; ch=0.64; dt=45; dvx=5.2; hp=5;
+        etype=ENEMY_BOSS;   cw=0.80; ch=0.80; dt=45; dvx=7.0; hp=10;
     } else if(!strcmp(ts,"shooter")){
         etype=ENEMY_SHOOTER; cw=0.32; ch=0.32; dt=120; dvx=1.5; hp=1; //dt: thời gian hồi chiêu
     } else if(!strcmp(ts,"sword")){

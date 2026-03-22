@@ -192,8 +192,8 @@ void draw_enemies(){
             continue;
         }
         unsigned int col;
-        if(e->type == ENEMY_BOSS) col=0xFF2200FF;
-        else if(e->type == ENEMY_SHOOTER) col=0x32CD32FF; 
+        if(e->type == ENEMY_BOSS) col = (e->hp <= 5) ? 0x8B0000FF : 0xFF2200FF;
+        else if(e->type == ENEMY_SHOOTER) col=0x32CD32FF;
         else if(e->type == ENEMY_SWORD) col=0xA9A9A9FF; 
         else if(e->type == ENEMY_MAGE) col=0x8A2BE2FF;
         else if(e->type == ENEMY_WEATHER_BOSS) col=0x00BFFFFF;
@@ -207,7 +207,7 @@ void draw_enemies(){
 
         if(e->hp > 0){
             int max_hp = 1;
-            if(e->type == ENEMY_BOSS) max_hp = 5;
+            if(e->type == ENEMY_BOSS) max_hp = 10;
             else if(e->type == ENEMY_WEATHER_BOSS) max_hp = 4;
             else if(e->type == ENEMY_SWORD || e->type == ENEMY_MAGE) max_hp = 2;
             

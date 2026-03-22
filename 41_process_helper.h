@@ -363,18 +363,69 @@ static inline void enemy_update_patrol(struct enemy_data* e, double dt){
 }
 
 static inline void enemy_update_dash(struct enemy_data* e, double dt, double px){
-    if(--e->action_timer<=0&&!e->dashing){
-        int tps=(int)(1.0/dt+0.5);
-        int freq=(e->type==ENEMY_BOSS)?50:100;
-        e->action_timer=(freq-20+(rand()%40))*tps/20;
-        e->dashing=tps*12/20;
-        e->dash_vx=(px>e->base.x)?fabs(e->dash_vx):-fabs(e->dash_vx);
+    if(--e->action_timer <= 0 && !e->dashing){
+        int tps = (int)(1.0/dt + 0.5);
+
+        int freq = (e->type == ENEMY_BOSS) ? ((e->hp <= 5) ? 30 : 50) : 100;
+        e->action_timer = (freq-20+(rand()%40))*tps/20;
+        e->dashing = tps*12/20;
+        e->dash_vx = (px>e->base.x) ? fabs(e->dash_vx) : -fabs(e->dash_vx);
+        if(e->type == ENEMY_BOSS){
+            for(int k = 0; k < PROJ_COUNT; k++){
+                if(!projectiles[k].active){
+                    projectiles[k].active = 1;
+                    projectiles[k].x = e->base.x;
+                    projectiles[k].y = e->base.y;
+                    int dir = (px > e->base.x) ? 1 : -1;
+                    projectiles[k].vx = dir * 8.0;
+                    projectiles[k].vy = 0;
+                    projectiles[k].dir = dir;
+                    projectiles[k].type = 1;
+                    break;
+                }
+            }
+        }
     }
-    if(e->dashing>0){
-        e->base.x+=e->dash_vx*dt;
+    
+    if(e->dashing > 0){
+        double speed_mult = (e->type == ENEMY_BOSS && e->hp <= 5) ? 1.5 : 1.0;
+        e->base.x += e->dash_vx * speed_mult * dt;
         e->dashing--;
-        e->base.x=dclamp(e->base.x,e->patrol_x_min,e->patrol_x_max);
+        e->base.x = dclamp(e->base.x,e->patrol_x_min,e->patrol_x_max);
     }
+}
+static inline void tele_weather_boss(struct enemy_data* e){
+    struct{
+        double pmin;
+        double pmax;
+        double y_file;
+    } plat[3] = {
+        {1.3, 4, 117.5},
+        {14.5, 16.5, 116.3},
+        {9.2, 12.2, 118}
+    };
+    int current = -1;
+    for(int i = 0; i < 3; i++){
+        if(fabs(e->patrol_x_min - plat[i].pmin) < 0.1){
+            current = i;
+            break;
+        }
+    }
+    int next;
+    do{
+        next = rand()%3;
+    } while(next == current && current != -1);
+    e->patrol_x_min = plat[next].pmin;
+    e->patrol_x_max = plat[next].pmax;
+    double ch = e->base.col_h;
+    double py = cfg.world_h - plat[next].y_file - ch;
+    e->patrol_y = py + ch / 2.0;
+
+    e->base.x = (e->patrol_x_min + e->patrol_x_max) / 2.0;
+    e->base.y = e->patrol_y;
+
+    e->dash_vx = 0.0;
+    e->action_timer = 60 * cfg.tps / 20;
 }
 
 static inline void enemy_vs_player(struct enemy_data* e, double px, double py){
@@ -394,10 +445,15 @@ static inline void enemy_vs_player(struct enemy_data* e, double px, double py){
         }
         else{ 
             e->active=0; 
-            e->stun_timer=(e->type==ENEMY_BOSS)?80*cfg.tps/20:60*cfg.tps/20;
+            e->stun_timer = (e->type==ENEMY_BOSS) ? 20*cfg.tps/20 : 60*cfg.tps/20;
             if(e->type == ENEMY_SWORD){
                 e->active = 1;
                 e->stun_timer = 0;
+            }
+            if(e->type == ENEMY_WEATHER_BOSS){
+                tele_weather_boss(e);
+                e->active = 1;      
+                e->stun_timer = 0;  
             }
         }
         player.base.vy=(player.jump_boost_timer>0)?cfg.jump_boost_vy*0.7:cfg.jump_vy*0.7;
@@ -499,15 +555,21 @@ void process_projectiles(double dt){
                 pr->active=0; 
                 
                 if(--e->hp<=0){
+                    play_sound(&sfx.hit);
                     e->active=0;
                     e->stun_timer = 999999;
                 } 
                 else {
                     e->active=0;
-                    e->stun_timer = (e->type==ENEMY_BOSS) ? 100*cfg.tps/20 : 600*cfg.tps/20;
+                    e->stun_timer = (e->type==ENEMY_BOSS) ? 15*cfg.tps/20 : 600*cfg.tps/20;
                     if(e->type == ENEMY_SWORD){
                         e->active = 1;
                         e->stun_timer = 0;
+                    }
+                    if(e->type == ENEMY_WEATHER_BOSS){
+                        tele_weather_boss(e);
+                        e->active = 1;      
+                        e->stun_timer = 0;  
                     }
                 }
                 break;

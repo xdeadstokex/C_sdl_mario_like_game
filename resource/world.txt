@@ -85,7 +85,7 @@ T 17.0 23.0 2.5 0.5 solid 0
 T 14.5 24.5 2.0 0.5 solid 0
 T 11.0 26.0 3.0 0.5 solid 0
 T 7.5 27.5 2.5 0.5 solid 0
-T 4.0 29.0 2.8 0.5 solid 0
+T 1.5 29.0 5.3 0.5 solid 0
 O 4.5 30 3 1 0.3 0.2 0xAA6633FF
 
 T 4.5 32.0 3.0 0.5 break 1
@@ -222,12 +222,14 @@ T 11.5 108.5 2.5 0.5 solid 0
 T 10.0 110.0 4.0 0.6 solid 0
 T 6.0 112.5 3.0 0.5 solid 0
 T 2.5 115.0 2.5 0.5 solid 0
+T 14.3 115.8 2.5 0.5 solid 0
 T 9 117.5 3.5 0.5 solid 0
+T 1.2 117.0 3 0.5 solid 0
+T 5.0 118.0 1 0.5 solid 0
+T 7.1 119.0 1 0.5 solid 0
 T 11.0 120.0 3.0 0.5 solid 0
 T 15.0 122.5 2.5 0.5 solid 0
-T 10.0 125.0 3.0 0.5 solid 0
-
-T 5.0 119.0 0.2 0.5 solid 0
+T 10.0 120.0 3.0 0.5 solid 0
 
 # right last parkour
 T 14 124 0.4 3.0 solid 0
@@ -238,7 +240,6 @@ D 14.5 125.5 1.5 1.5 0xAAAAAAFF
 # === BOSS ROOM ===
 # floor
 T 5.0 127.0 10.0 0.6 solid 0
-E 9.68 127.5 boss 6 14
 # left wall
 T 0.0 120.0 4.0 17.0 solid 0
 # right wall
@@ -246,11 +247,10 @@ T 16.0 127.0 4.0 10.0 solid 0
 
 # === ZIG-ZAG STAIRS ===
 # step 1 - from left wall
-T 4.0 128.5 5.0 0.4 solid 0
-E 4.0 128.9 boss 4.0 9
+
+
 # step 2 - from right wall
-T 11.0 129.5 5.0 0.4 solid 0
-E 11.0 129.9 boss 11.0 16.0
+T 11.0 130.2 5.0 0.4 solid 0
 # step 3 - from left wall
 T 4.0 130.2 5.0 0.4 solid 0
 T 5.0 130.2 0.5 4.0 solid 0
@@ -332,16 +332,28 @@ D 11.95 135.98 0.09 0.10 0x6B3A2AFF
 
 
 # --- enemies (bottom-left, y from ground) ---
-E 1.0 34.8 dasher 0.0 5.0
+E 1.0 34.8 dasher 0.3 5.0
 E 5.6 45.5 dasher 4.5 7.8
 E 9 6.95 dasher 8.3 11.8
 E 8.5 20.6 dasher 7.0 13.0
-E 10.5 63.6 dasher 6.5 11.7
+E 16.7 11.7 dasher 16.7 19.3
+E 0.7 18.0 dasher 0.7 2.7
+E 10.5 63.6 dasher 9.7 12.2
+E 11.3 26.5 dasher 11.3 13.8
 E 16.5 39.3 sword 15.0 19.7
-
+E 9.2 50.0 sword 9.2 11.7
+E 10 50.0 dasher 9.2 11.7
+E 5.9 62.0 dasher 5.8 7.3
 E 10 14.3 shooter 10.2 13.2
+E 0.1 34.8 shooter 0.1 4.7
+E 14.2 22.0 shooter 14.2 16.9
+E 1.1 47 shooter 1.1 3.6
+E 17 53 shooter 17 19.6
 E 9 118 weather 9 12
 E 8.5 96 mage 8.6 12.2
+E 5.0 127.6 boss 5.5 14.5
+E 17.7 66.5 sword 17.7 19.8
+E 19.0 66.5 sword 17.7 19.8
 
 # --- coins ---
 C 2.4 2.0
