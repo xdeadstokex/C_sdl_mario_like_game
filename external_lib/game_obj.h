@@ -195,6 +195,19 @@ struct player_data {
     int    last_move_dir;
     int    hp;
     int    fireball_ammo;
+
+    // buffered inputs — set by control(), consumed+cleared by process_helper
+    int    input_move_left;
+    int    input_move_right;
+    int    input_move_up;       // god mode up (W)
+    int    input_move_down;     // god mode down (S)
+    int    input_jump_click;    // space click
+    int    input_jump_hold;     // space hold  (god mode fly)
+    int    input_dash;          // shift click
+    int    input_shoot;         // F click
+    int    input_interact;      // E click
+    int    input_reload_world;  // K click
+    int    input_wall_press;    // a or d held — used for edge-grab detection
 };
 
 struct decor_data {

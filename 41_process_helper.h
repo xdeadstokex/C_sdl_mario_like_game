@@ -13,7 +13,7 @@ static inline double dsign(double v){ return v>0?1.0:v<0?-1.0:0.0; }
 
 // forward declaration — defined in 20_init.h
 void reset_player();
-
+void reload_world();
 //###############################################
 // PLAYER SENSORS
 // 4 thin rects flush on each player face.
@@ -113,7 +113,8 @@ static inline void apply_horizontal_move(double dt, int ml, int mr, double cur_s
 }
 
 static inline void apply_jump(){
-    if(!kb.key_space.click) return;
+    if(!player.input_jump_click) return;
+    player.input_jump_click = 0;  // consumed
     if(player.edge_grab){
         player_do_wall_jump();
     } else if(player.on_ground||player.sensors.d_active){
@@ -125,8 +126,8 @@ static inline void apply_jump(){
 }
 
 static inline void apply_dash(int ml, int mr){
-    if(!((kb.key_shift_l.click||kb.key_shift_r.click)
-         &&player.dash_ready&&!player.dashing&&!player.edge_grab)) return;
+    if(!(player.input_dash && player.dash_ready && !player.dashing && !player.edge_grab)) return;
+    player.input_dash = 0;  // consumed
     play_sound(&sfx.dash);
     player.dashing=cfg.dash_frames;
     player.dash_dir=player.last_move_dir;
@@ -137,7 +138,7 @@ static inline void apply_dash(int ml, int mr){
 // PLAYER MOVEMENT
 //###############################################
 void process_player_movement(double dt){
-    int ml=kb.key_a.hold, mr=kb.key_d.hold;
+    int ml=player.input_move_left, mr=player.input_move_right;
 
     if(player.speed_boost_timer>0) player.speed_boost_timer--;
     double cur_speed=(player.speed_boost_timer>0)?cfg.move_speed*1.5:cfg.move_speed;
@@ -146,11 +147,11 @@ void process_player_movement(double dt){
     if(player.god_mode){
         player.base.vx=0; player.base.vy=0; player.base.ay=0;
         double fly=6.0;
-        if(ml)                player.base.x-=fly*dt;
-        if(mr)                player.base.x+=fly*dt;
-        if(kb.key_w.hold)     player.base.y-=fly*dt;
-        if(kb.key_s.hold)     player.base.y+=fly*dt;
-        if(kb.key_space.hold) player.base.y-=fly*dt;
+        if(ml)                       player.base.x-=fly*dt;
+        if(mr)                       player.base.x+=fly*dt;
+        if(player.input_move_up)     player.base.y-=fly*dt;
+        if(player.input_move_down)   player.base.y+=fly*dt;
+        if(player.input_jump_hold)   player.base.y-=fly*dt;
         player.base.x=dclamp(player.base.x,0,cfg.world_w);
         player.base.y=dclamp(player.base.y,0,cfg.world_h);
         return;
@@ -172,8 +173,16 @@ void process_player_movement(double dt){
     // jump — reads d_active and on_ground from previous terrain pass
     apply_jump();
 
+    // RELOAD WORLD
+    if(player.input_reload_world && game_state==STATE_PLAY){
+        printf("[control] reloading world...\n");
+        reload_world();
+        player.input_reload_world=0;
+    }
+
     // FIREBALL SHOOT — F key
-    if(kb.key_f.click && player.fireball_ammo>0){
+    if(player.input_shoot && player.fireball_ammo>0){
+        player.input_shoot = 0;  // consumed
         player.fireball_ammo--;
         for(int _i=0;_i<PROJ_COUNT;_i++){
             if(!projectiles[_i].active){
@@ -220,7 +229,7 @@ static inline void handle_terrain_break(int i, double ty, double th){
 static inline void handle_wall_contact(int hl, int hr, double ty, double th){
     int ws=hr?1:-1;
     player.on_wall=ws;
-    int pressing=(ws==1&&kb.key_d.hold)||(ws==-1&&kb.key_a.hold);
+    int pressing=(ws==1&&player.input_move_right)||(ws==-1&&player.input_move_left);
     double terrain_top=ty-th*0.5;
     int beside=(player.base.y+player.base.col_oy)>=terrain_top;
     if(!player.on_ground&&pressing&&!player.edge_grab&&beside){
@@ -613,7 +622,8 @@ void process_chests(){
         if(chests[i].state==1){ chests[i].show_key=0; continue; }
         double dx=px-chests[i].x, dy=py-chests[i].y;
         chests[i].show_key=(dx*dx+dy*dy<1.5*1.5);
-        if(!chests[i].show_key||!kb.key_e.click) continue;
+        if(!chests[i].show_key||!player.input_interact) continue;
+        player.input_interact = 0;  // consumed
         play_sound(&sfx.chest);
         chests[i].state=1; chests[i].show_key=0;
         int j=0;

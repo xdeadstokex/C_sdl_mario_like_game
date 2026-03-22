@@ -27,10 +27,10 @@ int control(){
         if(window.mouse_click_right)  mouse_hold_right  = 1;
         if(window.mouse_click_middle) mouse_hold_middle = 1;
         if(window.mouse_motion)       mouse_motion      = 1;
-		if(window.resize_signal){
-			cfg.screen_w = (double)window.w;
-			cfg.screen_h = (double)window.h;
-		}
+        if(window.resize_signal){
+            cfg.screen_w = (double)window.w;
+            cfg.screen_h = (double)window.h;
+        }
     }
 
     mouse.motion = mouse_motion;
@@ -76,6 +76,23 @@ int control(){
     update_signal(&kb.key_alt_left,  window.key_alt_l);
     update_signal(&kb.key_alt_right, window.key_alt_r);
 
+    // -----------------------------------------------
+    // BUFFER INPUTS INTO player — process reads these
+    // clicks are ORed (latch until process consumes)
+    // holds are written fresh each frame
+    // -----------------------------------------------
+    player.input_move_left  = kb.key_a.hold;
+    player.input_move_right = kb.key_d.hold;
+    player.input_move_up    = kb.key_w.hold;
+    player.input_move_down  = kb.key_s.hold;
+    player.input_jump_hold  = kb.key_space.hold;
+    player.input_wall_press = kb.key_a.hold || kb.key_d.hold;
+    if(kb.key_space.click)                           player.input_jump_click  = 1;
+    if(kb.key_shift_l.click || kb.key_shift_r.click) player.input_dash        = 1;
+    if(kb.key_f.click)                               player.input_shoot       = 1;
+    if(kb.key_e.click)                               player.input_interact    = 1;
+    if(kb.key_g.click)                               player.god_mode          = !player.god_mode;
+    if(kb.key_k.click)                               player.input_reload_world= 1;
 
     // MENU
     if(game_state == STATE_MENU){
@@ -125,15 +142,6 @@ int control(){
             if(check_point_in_box_2d(mx,my,bx,sh*58/100,bw,bh)){ game_state=STATE_MENU; menu_sub_state=0; }
         }
         return 1;
-    }
-
-    // GOD MODE TOGGLE
-    if(kb.key_g.click) player.god_mode = !player.god_mode;
-
-    // K = reload world file mid-game (preserves player position)
-    if(kb.key_k.click && game_state == STATE_PLAY){
-        printf("[control] reloading world...\n");
-        reload_world();
     }
 
     // I/O = zoom in/out, snap camera instantly to avoid visual lag
