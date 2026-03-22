@@ -9,10 +9,9 @@
 
 void process(){
     update_timer(&tps_timer);
-    while(!tps_timer.at_tagret_time){
-        double wait_t = tps_timer.tagret_time - tps_timer.time;
-        if(wait_t > 0) wait_sec(wait_t);
-        update_timer(&tps_timer);
+    if(!tps_timer.at_tagret_time){
+		wait_sec(tps_timer.tagret_time - tps_timer.time);
+		return;
     }
     double dt=tps_timer.dt_sec;
     if(game_state!=STATE_PLAY){ render_flag=1; return; }
