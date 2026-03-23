@@ -14,7 +14,7 @@
 #define COIN_COUNT     30
 
 #define ITEM_COUNT     3
-#define CHEST_COUNT    10 //chest nums
+#define CHEST_COUNT    15 //chest nums
 #define PROJ_COUNT     50 //fireball nums
 
 #define ENEMY_COUNT    50
