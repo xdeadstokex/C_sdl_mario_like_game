@@ -148,6 +148,13 @@ void process_player_movement(double dt){
     if(player.speed_boost_timer > 0) cur_speed *= 1.5;
     if(player.slow_timer > 0) cur_speed *= 0.5;
 
+    // RELOAD WORLD
+    if(player.input_reload_world && game_state==STATE_PLAY){
+        printf("[control] reloading world...\n");
+        reload_world();
+        player.input_reload_world=0;
+    }
+
     // GOD MODE — free fly, bypass all physics
     if(player.god_mode){
         player.base.vx=0; player.base.vy=0; player.base.ay=0;
@@ -177,13 +184,6 @@ void process_player_movement(double dt){
 
     // jump — reads d_active and on_ground from previous terrain pass
     apply_jump();
-
-    // RELOAD WORLD
-    if(player.input_reload_world && game_state==STATE_PLAY){
-        printf("[control] reloading world...\n");
-        reload_world();
-        player.input_reload_world=0;
-    }
 
     // FIREBALL SHOOT — F key
     if(player.input_shoot && player.fireball_ammo>0){
