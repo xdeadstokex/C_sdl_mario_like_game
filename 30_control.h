@@ -99,9 +99,13 @@ int control(){
         if(menu_sub_state == 0){
             if(kb.key_enter.click){
                 game_state = STATE_PLAY;
+                play_sound_loop(&sfx.bgm_play_low_layer);
+                stop_sound(&sfx.bgm_menu);
                 reset_game();
             }
             if(mouse.left.click){
+                play_sound_loop(&sfx.bgm_play_low_layer);
+                stop_sound(&sfx.bgm_menu);
                 int mx=mouse.x, my=mouse.y;
                 int sw=(int)cfg.screen_w, sh=(int)cfg.screen_h;
                 int bw=sw/6, bh=sh*6/100, bx=sw/2-bw/2;

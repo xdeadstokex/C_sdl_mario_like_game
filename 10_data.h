@@ -70,6 +70,9 @@ struct {
     sound_data coin;
     sound_data theme;
     sound_data fireball;
+    sound_data bgm_menu;
+    sound_data bgm_play_low_layer;
+    sound_data bgm_play_high_layer;
 } sfx;
 int game_state;
 int menu_sub_state;

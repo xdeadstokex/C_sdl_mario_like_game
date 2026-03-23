@@ -31,6 +31,25 @@ void process(){
     process_projectiles(dt);
     process_camera(dt);
     process_win_check();
+    // static int flag_sound = 0;
+    // if (player.base.y >= 100.0 && flag_sound == 0) {         
+    //     // play_sound_loop(&sfx.bgm_play_high_layer); 
+    //     stop_sound(&sfx.bgm_play_low_layer);      
+    //     flag_sound = 1;
+    // }
+    // if (player.base.y > 100.0) {
+
+    // if (!Mix_Playing(sfx.bgm_play_high_layer.channel)) {
+    //     stop_sound(&sfx.bgm_play_low_layer);      
+    //     play_sound_loop(&sfx.bgm_play_high_layer); 
+    // }
+    // } 
+    // else {
+    //     if (!Mix_Playing(sfx.bgm_play_low_layer.channel)) {
+    //         stop_sound(&sfx.bgm_play_high_layer);     // Dừng nhạc cao
+    //         play_sound_loop(&sfx.bgm_play_low_layer);  // Phát nhạc thấp
+    //     }
+    // }
     render_flag=1;
 }
 

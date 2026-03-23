@@ -144,6 +144,11 @@ int init(){
     load_sound(&sfx.coin,   "assets/coin.mp3");
     load_sound(&sfx.theme,   "assets/theme.mp3");
     load_sound(&sfx.fireball, "assets/fireball.mp3");
+    load_sound(&sfx.bgm_menu, "assets/menu.mp3");
+    
+    load_sound(&sfx.bgm_play_low_layer, "assets/low.mp3");
+    load_sound(&sfx.bgm_play_high_layer, "assets/high.mp3");
+    play_sound_loop(&sfx.bgm_menu);
     reset_game();
     return 1;
 }
