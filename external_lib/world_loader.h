@@ -157,7 +157,7 @@ static void load_tag_E(wl_ctx* ctx, const char* line){
     } else if(!strcmp(ts,"sword")){
         etype=ENEMY_SWORD; cw=0.40; ch=0.45; dt=90; dvx=2.5; hp=2;
     } else if(!strcmp(ts,"mage")){
-        etype=ENEMY_MAGE; cw=0.32; ch=0.40; dt=150; dvx=2.0; hp=2;//dt: thời gian hồi chiêu
+        etype=ENEMY_MAGE; cw=0.32; ch=0.40; dt=150; dvx=2.0; hp=5;//dt: thời gian hồi chiêu
     } else if(!strcmp(ts,"weather")){
         etype=ENEMY_WEATHER_BOSS; cw=0.70; ch=0.70; dt=100; dvx=20.0; hp=4;
     } else { wl_error(ctx,"E type must be dasher|boss|shooter|sword",line); return; }

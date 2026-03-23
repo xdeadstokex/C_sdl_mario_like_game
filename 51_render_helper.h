@@ -209,7 +209,8 @@ void draw_enemies(){
             int max_hp = 1;
             if(e->type == ENEMY_BOSS) max_hp = 10;
             else if(e->type == ENEMY_WEATHER_BOSS) max_hp = 4;
-            else if(e->type == ENEMY_SWORD || e->type == ENEMY_MAGE) max_hp = 2;
+            else if(e->type == ENEMY_SWORD) max_hp = 2;
+            else if(e->type == ENEMY_MAGE) max_hp = 5;
             
             int bw, bh, bx, by;
             if(e->type == ENEMY_BOSS || e->type == ENEMY_WEATHER_BOSS || e->type == ENEMY_MAGE){
