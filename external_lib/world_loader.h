@@ -140,39 +140,53 @@ static void load_tag_T(wl_ctx* ctx, const char* line){
     (*ctx->terrain_count)++;
 }
 
-// E  x  y  type  patrol_min  patrol_max  (top-left in meters)
-static void load_tag_E(wl_ctx* ctx, const char* line){
+static void load_tag_E(wl_ctx* ctx, const char* line, enemy_cfg_t* enemy_cfg){
     wl_check_cap(ctx,*ctx->enemy_count,ctx->enemy_max,"E",line);
+
     double x,y,pmin,pmax; char ts[32];
-    int n=sscanf(line+1,"%lf %lf %31s %lf %lf",&x,&y,ts,&pmin,&pmax);
+    int n = sscanf(line+1,"%lf %lf %31s %lf %lf",&x,&y,ts,&pmin,&pmax);
     wl_check_fields(ctx,n,5,"E",line);
-    int etype; double cw,ch,dvx; int dt,hp;
 
-    if(!strcmp(ts,"dasher")){
-        etype=ENEMY_DASHER; cw=0.32; ch=0.32; dt=90; dvx=3.5; hp=1;
-    } else if(!strcmp(ts,"boss")){
-        etype=ENEMY_BOSS;   cw=0.80; ch=0.80; dt=45; dvx=7.0; hp=10;
-    } else if(!strcmp(ts,"shooter")){
-        etype=ENEMY_SHOOTER; cw=0.32; ch=0.32; dt=120; dvx=1.5; hp=1; //dt: thời gian hồi chiêu
-    } else if(!strcmp(ts,"sword")){
-        etype=ENEMY_SWORD; cw=0.40; ch=0.45; dt=90; dvx=2.5; hp=2;
-    } else if(!strcmp(ts,"mage")){
-        etype=ENEMY_MAGE; cw=0.32; ch=0.40; dt=150; dvx=2.0; hp=5;//dt: thời gian hồi chiêu
-    } else if(!strcmp(ts,"weather")){
-        etype=ENEMY_WEATHER_BOSS; cw=0.70; ch=0.70; dt=100; dvx=20.0; hp=4;
-    } else { wl_error(ctx,"E type must be dasher|boss|shooter|sword",line); return; }
+    int etype;
 
-    int i=*ctx->enemy_count;
-    double py = ctx->cfg->world_h - y - ch;  // physic top-left y
+    if(!strcmp(ts,"dasher")) etype=ENEMY_DASHER;
+    else if(!strcmp(ts,"boss")) etype=ENEMY_BOSS;
+    else if(!strcmp(ts,"shooter")) etype=ENEMY_SHOOTER;
+    else if(!strcmp(ts,"sword")) etype=ENEMY_SWORD;
+    else if(!strcmp(ts,"mage")) etype=ENEMY_MAGE;
+    else if(!strcmp(ts,"weather")) etype=ENEMY_WEATHER_BOSS;
+    else { wl_error(ctx,"E bad type",line); return; }
+
+    const enemy_cfg_t* c = &enemy_cfg[etype];
+
+    int i = *ctx->enemy_count;
+
+    double cw = c->col_w;
+    double ch = c->col_h;
+    double py = ctx->cfg->world_h - y - ch;
+
     set_physic_base(&ctx->enemies[i].base,
-        x+cw/2.0, py+ch/2.0, 0,0,0,0,-1,0.4,0.0,0,0,cw,ch);
-    ctx->enemies[i].type=etype;    ctx->enemies[i].active=1;
-    ctx->enemies[i].stun_timer=0;  ctx->enemies[i].patrol_dir=1;
-    ctx->enemies[i].patrol_timer=60;
-    ctx->enemies[i].patrol_x_min=pmin; ctx->enemies[i].patrol_x_max=pmax;
-    ctx->enemies[i].patrol_y=py+ch/2.0;  // physic center y
-    ctx->enemies[i].action_timer=dt; ctx->enemies[i].dashing=0;
-    ctx->enemies[i].dash_vx=dvx;   ctx->enemies[i].hp=hp;
+        x+cw*0.5, py+ch*0.5,
+        0,0,0,0,-1,0.4,0.0,0,0,
+        cw,ch);
+
+    ctx->enemies[i].type = etype;
+    ctx->enemies[i].active = 1;
+
+    ctx->enemies[i].stun_timer = 0;
+    ctx->enemies[i].patrol_dir = 1;
+    ctx->enemies[i].patrol_timer = 60;
+
+    ctx->enemies[i].patrol_x_min = pmin;
+    ctx->enemies[i].patrol_x_max = pmax;
+    ctx->enemies[i].patrol_y     = py + ch*0.5;
+
+    ctx->enemies[i].action_timer = c->action_cd;
+    ctx->enemies[i].dashing = 0;
+    ctx->enemies[i].dash_vx = c->dash_vx;
+
+    ctx->enemies[i].hp = c->max_hp;
+
     (*ctx->enemy_count)++;
 }
 
@@ -376,12 +390,13 @@ static void wl_write_default(const char* fp){
 static void load_world(
     const char* filepath, int preserve_player,
     struct game_config*  cfg,
+    enemy_cfg_t* enemy_cfg,
     struct terrain_data* terrains, int* tc, int tm,
     struct enemy_data*   enemies,  int* ec, int em,
     struct coin_data*    coins,    int* cc, int cm,
     struct item_data*    items,    int* ic, int im,
     struct decor_data*   decors,   int* dc, int dm,
-    struct chest_data* chests_arr, int* chest_c, int chest_m,
+    struct chest_data*   chests_arr, int* chest_c, int chest_m,
     struct pobj_data*    pobjs,    int* oc, int om,
     double* spawn_x, double* spawn_y
 ){
@@ -423,7 +438,7 @@ static void load_world(
         switch(line[0]){
             case 'V': load_tag_V(&ctx,line); break;
             case 'T': load_tag_T(&ctx,line); break;
-            case 'E': load_tag_E(&ctx,line); break;
+            case 'E': load_tag_E(&ctx,line, enemy_cfg); break;
             case 'C': load_tag_C(&ctx,line); break;
             case 'I': load_tag_I(&ctx,line); break;
             case 'B': load_tag_B(&ctx,line); break;

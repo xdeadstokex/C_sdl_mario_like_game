@@ -186,6 +186,7 @@ int key_capslock;
 int key_shift_l; int key_shift_r;
 int key_ctrl_l; int key_ctrl_r;
 int key_alt_l; int key_alt_r;
+int key_period;
 
 // mouse section
 int mouse_motion;
@@ -412,6 +413,7 @@ case SDLK_LCTRL: window->key_ctrl_l = key_signal; break;
 case SDLK_RCTRL: window->key_ctrl_r = key_signal; break;
 case SDLK_LALT: window->key_alt_l = key_signal; break;
 case SDLK_RALT: window->key_alt_r = key_signal; break;
+case SDLK_PERIOD: window->key_period = key_signal; break;
 }
 return 1;
 }

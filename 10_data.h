@@ -43,6 +43,52 @@ timer_data tps_timer;
 // GAME CONFIG  (loaded from world.txt, runtime)
 //###############################################
 struct game_config cfg;
+static enemy_cfg_t ENEMY_CFG[ENEMY_TYPE_COUNT];
+
+
+
+
+
+//-----------------------------------------------
+// GAME CONSTANTS (engine / shared)
+//-----------------------------------------------
+#define PROJ_TYPE_ENEMY        1
+
+#define MAGE_RANGE_BASE        6.0
+#define MAGE_RANGE_SCALE_Y     0.7
+#define MAGE_RANGE_MIN         2.0
+#define MAGE_RANGE_MAX         14.0
+#define MAGE_DY_MIN           -8.0
+#define MAGE_DY_MAX            12.0
+
+#define TERRAIN_HIT_EPS_X      0.05
+#define TERRAIN_HIT_Y_MIN     -0.1
+#define TERRAIN_HIT_Y_MAX      0.2
+
+#define PATROL_SPEED           1.0
+
+#define DASH_FREQ_RAND         40
+#define DASH_FREQ_OFFSET       20
+
+#define DASH_TIME              12
+#define DASH_TIME_DIV          20
+
+#define DASH_PROJ_SPEED_BOSS   8.0
+
+#define WEATHER_PLAT_COUNT     3
+
+#define WEATHER_RESET_CD       60
+
+#define STUN_TIME_DEAD         999999
+
+//###############################################
+// GAME CONSTANTS
+//###############################################
+#define REVIVE_OFFSET_Y        20.0
+#define WORLD_EDGE_PAD         2.0
+
+#define JUMP_BOUNCE_SCALE      0.7
+
 
 //###############################################
 // GAME DATA

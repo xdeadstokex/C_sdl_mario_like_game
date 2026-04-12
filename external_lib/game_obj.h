@@ -20,13 +20,14 @@
 //###############################################
 #define TERRAIN_SOLID  0
 #define TERRAIN_BREAK  1
+
+#define ENEMY_TYPE_COUNT 6 // remember to change this when add/remove enemy type
 #define ENEMY_DASHER   0
 #define ENEMY_BOSS     1
 #define ENEMY_SHOOTER  2
 #define ENEMY_SWORD    3
 #define ENEMY_MAGE     4
 #define ENEMY_WEATHER_BOSS  5
-
 
 //###############################################
 // GAME CONFIG
@@ -64,6 +65,56 @@ struct game_config {
     double max_vy;
 };
 
+typedef struct {
+    int max_hp;
+
+    int shoot_cd;
+    double proj_speed;
+
+    int mage_warn;
+    int mage_cd;
+
+    int dash_freq_lowhp;
+    int dash_freq;
+    double dash_speed_mult_lowhp;
+    double dash_speed_mult;
+
+    int stun_time;
+    int stun_time_boss;
+
+    double push_force;
+    double push_lift;
+    int push_slow_time;
+
+    int is_boss;
+    int instant_recover;
+    int teleport_on_hit;
+
+    int weather_cd_base;
+    int weather_cd_var;
+    double weather_push_range_sq;
+    double weather_push_scale;
+    double weather_dash_speed;
+
+    // physics / spawn
+    double col_w, col_h;
+    double dash_vx;
+    int action_cd;
+
+    // ===== VISUAL =====
+    unsigned int col_base;
+    unsigned int col_lowhp;
+    unsigned int col_dash;
+
+    double hpbar_w, hpbar_h;
+    double hpbar_yoff;
+    int draw_eyes;
+    double eye_size;
+    int cull_margin;
+    int has_weather_fx;
+
+} enemy_cfg_t;
+
 static struct game_config game_config_default(){
     struct game_config c;
     c.px_per_m          = 100.0;
@@ -89,6 +140,147 @@ static struct game_config game_config_default(){
     return c;
 }
 
+void init_enemy_cfg(enemy_cfg_t* cfg){
+    enemy_cfg_t* e;
+
+    // clear all
+    for(int i=0;i<ENEMY_TYPE_COUNT;i++){
+        cfg[i] = (enemy_cfg_t){0};
+    }
+
+    // SWORD
+    e = &cfg[ENEMY_SWORD];
+	e->max_hp = 2;
+    e->instant_recover = 1;
+    e->stun_time = 60;
+    e->push_force = 12.0;
+    e->push_lift  = -6.0;
+    e->col_w = 0.40; e->col_h = 0.45;
+    e->dash_vx = 2.5;
+    e->action_cd = 90;
+
+	e->col_base=0xA9A9A9FF;
+	e->col_dash=0xFF7700FF;
+	e->hpbar_w=0.5; e->hpbar_h=0.05; e->hpbar_yoff=0.16;
+	e->draw_eyes=1; e->eye_size=0.07;
+	e->cull_margin=100;
+	e->has_weather_fx = 0;
+
+    // MAGE
+    e = &cfg[ENEMY_MAGE];
+	e->max_hp = 4;
+    e->mage_warn = 40;
+    e->mage_cd   = 100;
+    e->stun_time = 60;
+    e->push_force = 3.0;
+    e->push_lift  = -3.0;
+    e->col_w = 0.32; e->col_h = 0.40;
+    e->dash_vx = 2.0;
+    e->action_cd = 150;
+
+	e->col_base=0x8A2BE2FF;
+	e->col_dash=0xFF7700FF;
+	e->hpbar_w=0.8; e->hpbar_h=0.1; e->hpbar_yoff=0.16;
+	e->draw_eyes=1; e->eye_size=0.07;
+	e->cull_margin=100;
+	e->has_weather_fx = 0;
+
+    // SHOOTER
+    e = &cfg[ENEMY_SHOOTER];
+	e->max_hp = 1;
+    e->shoot_cd = 60;
+    e->proj_speed = 6.0;
+    e->stun_time = 60;
+    e->push_force = 4.0;
+    e->push_lift  = -3.5;
+    e->col_w = 0.32; e->col_h = 0.32;
+    e->dash_vx = 1.5;
+    e->action_cd = 120;
+
+	e->col_base   = 0x32CD32FF;
+	e->col_dash   = 0xFF7700FF;
+	e->hpbar_w    = 0.5;
+	e->hpbar_h    = 0.05;
+	e->hpbar_yoff = 0.16;
+	e->draw_eyes  = 1;
+	e->eye_size   = 0.07;
+	e->cull_margin = 100;
+	e->has_weather_fx = 0;
+
+    // DASHER
+    e = &cfg[ENEMY_DASHER];
+	e->max_hp = 1;
+    e->dash_freq = 100;
+    e->dash_speed_mult = 1.0;
+    e->stun_time = 60;
+    e->push_force = 4.0;
+    e->push_lift  = -3.5;
+    e->col_w = 0.32; e->col_h = 0.32;
+    e->dash_vx = 3.5;
+    e->action_cd = 90;
+
+	e->col_base   = 0xCC3333FF;
+	e->col_dash   = 0xFF7700FF;
+	e->hpbar_w    = 0.5;
+	e->hpbar_h    = 0.05;
+	e->hpbar_yoff = 0.16;
+	e->draw_eyes  = 1;
+	e->eye_size   = 0.07;
+	e->cull_margin = 100;
+	e->has_weather_fx = 0;
+
+    // BOSS
+    e = &cfg[ENEMY_BOSS];
+	e->max_hp = 10;
+    e->is_boss = 1;
+    e->dash_freq = 50;
+    e->dash_freq_lowhp = 30;
+    e->dash_speed_mult = 1.0;
+    e->dash_speed_mult_lowhp = 1.5;
+    e->stun_time = 60;
+    e->stun_time_boss = 20;
+    e->push_force = 15.0;
+    e->push_lift  = -7.0;
+    e->push_slow_time = 100;
+    e->col_w = 0.80; e->col_h = 0.80;
+    e->dash_vx = 7.0;
+    e->action_cd = 45;
+
+	e->col_base   = 0xFF2200FF;
+	e->col_lowhp  = 0x8B0000FF;
+	e->col_dash   = 0xFF7700FF;
+	e->hpbar_w    = 0.8;
+	e->hpbar_h    = 0.1;
+	e->hpbar_yoff = 0.16;
+	e->draw_eyes  = 1;
+	e->eye_size   = 0.07;
+	e->cull_margin = 100;
+	e->has_weather_fx = 0;
+
+    // WEATHER BOSS
+    e = &cfg[ENEMY_WEATHER_BOSS];
+	e->max_hp = 5;
+    e->is_boss = 1;
+    e->teleport_on_hit = 1;
+    e->stun_time = 60;
+    e->push_force = 8.0;
+    e->push_lift  = -5.0;
+    e->weather_cd_base = 200;
+    e->weather_cd_var  = 200;
+    e->weather_push_range_sq = 324.0;
+    e->weather_push_scale    = 0.35;
+    e->weather_dash_speed    = 20.0;
+    e->col_w = 0.70; e->col_h = 0.70;
+    e->dash_vx = 20.0;
+    e->action_cd = 100;
+
+	e->col_base=0x00BFFFFF;
+	e->col_dash=0xFF7700FF;
+	e->hpbar_w=0.8; e->hpbar_h=0.1; e->hpbar_yoff=0.16;
+	e->draw_eyes=1; e->eye_size=0.07;
+	e->cull_margin=1800;
+	e->has_weather_fx=1;
+}
 
 //###############################################
 // RENDER CONVERSION  (meters -> screen pixels)

@@ -17,7 +17,7 @@ void render(){
     draw_items();
     draw_decors();
     draw_pobjs();
-    draw_enemies();
+    draw_enemies(ENEMY_CFG);
 	//draw_player_sensors();
     draw_player();
 	draw_projectiles();

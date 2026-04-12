@@ -22,36 +22,83 @@ static unsigned int lerp_color(unsigned int c0,unsigned int c1,double t){
     return ((unsigned int)r<<24)|((unsigned int)g<<16)|((unsigned int)b<<8)|0xFF;
 }
 
+static unsigned int hash_u32(int x,int y){
+    unsigned int h = (unsigned int)(x*374761393 + y*668265263);
+    h = (h ^ (h>>13)) * 1274126177u;
+    return h ^ (h>>16);
+}
+
+static double hash01(int x,int y){
+    return (double)(hash_u32(x,y)%10000)/10000.0;
+}
+
+//###############################################
+// BACKGROUND
+//###############################################
 void draw_background(){
-    // height in meters from base (0=base, world_h=summit)
     double h_m = cfg.world_h - player.base.y;
+
     unsigned int c_base   = 0x1A1214FF;
     unsigned int c_lower  = 0x2D2B3DFF;
     unsigned int c_mid    = 0x3D5A80FF;
     unsigned int c_upper  = 0x7090B0FF;
     unsigned int c_summit = 0xC8DCF0FF;
+
     unsigned int bg;
     if     (h_m<15){ double t=h_m/15.0;         bg=lerp_color(c_lower,c_base,1.0-t); }
     else if(h_m<40){ double t=(h_m-15.0)/25.0;  bg=lerp_color(c_lower,c_mid,t); }
     else if(h_m<65){ double t=(h_m-40.0)/25.0;  bg=lerp_color(c_mid,c_upper,t); }
     else if(h_m<85){ double t=(h_m-65.0)/20.0;  bg=lerp_color(c_upper,c_summit,t); }
     else             bg=c_summit;
-    draw_rect(&window,0,0,(int)cfg.screen_w,(int)cfg.screen_h,bg);
 
-    if(h_m<40){
-        int sw=(int)cfg.screen_w, sh=(int)cfg.screen_h;
-        double para=0.3;
-        int mx=(int)(camera.x_px*para);
-        unsigned int mc=lerp_color(0x444450FF,bg,0.5);
-        for(int row=0;row<20;row++){
-            int rw=sw/4-row*14, rx=sw/12-mx%sw-rw/2+row*7;
-            int ry=sh-sh*38/100+row*13;
-            if(ry>0&&ry<sh) draw_rect(&window,rx,ry,rw>0?rw:0,14,mc);
-        }
-        for(int row=0;row<20;row++){
-            int rw=sw*23/100-row*13, rx=sw*67/100-mx%sw-rw/2+row*6;
-            int ry=sh-sh*35/100+row*12;
-            if(ry>0&&ry<sh) draw_rect(&window,rx,ry,rw>0?rw:0,13,mc);
+    int sw=(int)cfg.screen_w, sh=(int)cfg.screen_h;
+    draw_rect(&window,0,0,sw,sh,bg);
+
+    unsigned int dark = 0x303038FF;
+    unsigned int light= 0xA0A0A8FF;
+
+    double ht = h_m / cfg.world_h; // 0 bottom → 1 top
+
+    // ---- height bands (bottom → top) ----
+    int tiles[3] = {192, 96, 48};
+    double cuts[2] = {0.33, 0.66}; // adjust if needed
+
+    for(int band=0; band<3; band++){
+        double y0 = (band==0)?0.0 : cuts[band-1];
+        double y1 = (band==2)?1.0 : cuts[band];
+
+        int tile = tiles[band];
+
+        int cols = sw/tile + 2;
+        int rows = sh/tile + 2;
+
+        int ox = (int)(camera.x_px) / tile;
+        int oy = (int)(camera.y_px) / tile;
+
+        int px_off = (int)camera.x_px % tile;
+        int py_off = (int)camera.y_px % tile;
+
+        for(int y=0;y<rows;y++){
+            for(int x=0;x<cols;x++){
+                int sx = x*tile - px_off;
+                int sy = y*tile - py_off;
+
+                // convert screen y → world height ratio
+                double wy = (camera.y_px + sy) / cfg.px_per_m;
+                double h_ratio = (cfg.world_h - wy) / cfg.world_h;
+
+                if(h_ratio < y0 || h_ratio >= y1) continue;
+
+                int gx = x + ox;
+                int gy = y + oy;
+
+                double r = hash01(gx,gy);
+                double t = ht*0.85 + r*0.15;
+
+                unsigned int col = lerp_color(dark, light, t);
+
+                draw_rect(&window, sx, sy, tile+1, tile+1, col);
+            }
         }
     }
 }
@@ -163,105 +210,87 @@ void draw_player_sensors(){
 //###############################################
 // ENEMIES
 //###############################################
-void draw_enemies(){
-    static double last_time = -1.0;
-    double current_time = tps_timer.time;
-    double dt_render = 0.0;
-    if(last_time != current_time) {
-        dt_render = (last_time < 0) ? 0.0 : (current_time - last_time);
-        if(dt_render > 0.1) dt_render = 0.1;
-        last_time = current_time;
+#define DRAW_BODY(x,y,w,h,col) \
+    draw_rect_centered(&window,x,y,w,h,col)
+
+static inline void draw_eyes_cfg(int x,int y,int w,int h,const enemy_cfg_t* c){
+    if(!c->draw_eyes) return;
+    int s=SP(c->eye_size);
+    draw_rect_centered(&window,x-w/5,y-h/5,s,s,0xFFFF00FF);
+    draw_rect_centered(&window,x+w/5,y-h/5,s,s,0xFFFF00FF);
+}
+
+static inline void draw_hpbar_cfg(struct enemy_data* e,const enemy_cfg_t* c,
+                                  int x,int y,int h){
+    if(e->hp<=0 || c->max_hp<=0) return;
+
+    int bw=SP(c->hpbar_w);
+    int bh=SP(c->hpbar_h);
+    int bx=x-bw/2;
+    int by=y-h/2-SP(c->hpbar_yoff);
+
+    draw_rect(&window,bx,by,bw,bh,0x333333FF);
+    draw_rect(&window,bx,by,bw*e->hp/c->max_hp,bh,0xFF3333F0);
+}
+
+static inline unsigned int enemy_color(struct enemy_data* e,const enemy_cfg_t* c){
+    if(e->dashing) return c->col_dash;
+    if(c->col_lowhp && e->hp <= c->max_hp/2) return c->col_lowhp;
+    return c->col_base;
+}
+
+static void draw_weather_fx(struct enemy_data* e,int i,double dt){
+    static double ox[ENEMY_COUNT]={0};
+    static double oy[ENEMY_COUNT]={0};
+
+    ox[i]+=e->dash_vx*0.6*dt;
+    oy[i]+=2.0*dt;
+
+    double bx=e->base.x, by=e->base.y;
+
+    for(int k=0;k<120;k++){
+        double nx=fmod(fabs(sin(k*99.123)*12345.67),36.0);
+        double ny=fmod(fabs(cos(k*88.321)*76543.21),36.0);
+
+        double mx=fmod(nx+ox[i],36.0); if(mx<0) mx+=36.0; mx-=18.0;
+        double my=fmod(ny+oy[i],36.0); if(my<0) my+=36.0; my-=18.0;
+
+        if(mx*mx+my*my < 324.0){
+            int sx=SX(bx+mx), sy=SY(by+my);
+            unsigned int col=(k%3==0)?0x228B22FF:(k%3==1)?0x32CD32FF:0x8B4513FF;
+            if(k&1) draw_rect(&window,sx,sy,6,10,col);
+            else    draw_rect(&window,sx,sy,10,6,col);
+        }
     }
-    
-    static double leaf_ox[ENEMY_COUNT] = {0};
-    static double leaf_oy[ENEMY_COUNT] = {0};
+}
+
+void draw_enemies(enemy_cfg_t* tbl){
+    static double last=-1;
+    double t=tps_timer.time;
+    double dt=(last<0)?0:(t-last); if(dt>0.1) dt=0.1; last=t;
 
     for(int i=0;i<enemy_count_actual;i++){
         struct enemy_data* e=&enemies[i];
-        int esx=SX(e->base.x), esy=SY(e->base.y);
+        const enemy_cfg_t* c=&tbl[e->type];
 
-        int cull_margin = (e->type == ENEMY_WEATHER_BOSS) ? 1800 : 100;
-        if(esy < -cull_margin || esy > (int)cfg.screen_h + cull_margin) continue;
+        int x=SX(e->base.x), y=SY(e->base.y);
+        if(y<-c->cull_margin || y>cfg.screen_h+c->cull_margin) continue;
 
-        int ew=SP(e->base.col_w), eh=SP(e->base.col_h);
+        int w=SP(e->base.col_w), h=SP(e->base.col_h);
 
         if(!e->active){
-            draw_rect_centered(&window,esx,esy,ew,eh,0x666666FF);
-            draw_line(&window,esx-ew/5,esy-eh/5,esx+ew/5,esy+eh/5,0x222222FF);
-            draw_line(&window,esx+ew/5,esy-eh/5,esx-ew/5,esy+eh/5,0x222222FF);
+            DRAW_BODY(x,y,w,h,0x666666FF);
+            draw_line(&window,x-w/5,y-h/5,x+w/5,y+h/5,0x222222FF);
+            draw_line(&window,x+w/5,y-h/5,x-w/5,y+h/5,0x222222FF);
             continue;
         }
-        unsigned int col;
-        if(e->type == ENEMY_BOSS) col = (e->hp <= 5) ? 0x8B0000FF : 0xFF2200FF;
-        else if(e->type == ENEMY_SHOOTER) col=0x32CD32FF;
-        else if(e->type == ENEMY_SWORD) col=0xA9A9A9FF; 
-        else if(e->type == ENEMY_MAGE) col=0x8A2BE2FF;
-        else if(e->type == ENEMY_WEATHER_BOSS) col=0x00BFFFFF;
-        else col=0xCC3333FF; 
 
-        if(e->dashing) col=0xFF7700FF;
-        draw_rect_centered(&window,esx,esy,ew,eh,col);
-        int eye_s=SP(0.07);
-        draw_rect_centered(&window,esx-ew/5,esy-eh/5,eye_s,eye_s,0xFFFF00FF);
-        draw_rect_centered(&window,esx+ew/5,esy-eh/5,eye_s,eye_s,0xFFFF00FF);
+        DRAW_BODY(x,y,w,h,enemy_color(e,c));
+        draw_eyes_cfg(x,y,w,h,c);
+        draw_hpbar_cfg(e,c,x,y,h);
 
-        if(e->hp > 0){
-            int max_hp = 1;
-            if(e->type == ENEMY_BOSS) max_hp = 10;
-            else if(e->type == ENEMY_WEATHER_BOSS) max_hp = 4;
-            else if(e->type == ENEMY_SWORD) max_hp = 2;
-            else if(e->type == ENEMY_MAGE) max_hp = 5;
-            
-            int bw, bh, bx, by;
-            if(e->type == ENEMY_BOSS || e->type == ENEMY_WEATHER_BOSS || e->type == ENEMY_MAGE){
-                bw=SP(0.8); bh=SP(0.1); bx=esx-SP(0.4); by=esy-eh/2-SP(0.16);
-            }
-            else{
-                bw=SP(0.5); bh=SP(0.05); bx=esx-SP(0.25); by=esy-eh/2-SP(0.16);
-            }
-            
-            draw_rect(&window, bx, by, bw, bh, 0x333333FF);
-            draw_rect(&window, bx, by, bw * e->hp / max_hp, bh, 0xFF3333F0);
-        }
-
-        if(e->type == ENEMY_WEATHER_BOSS && e->hp > 0) {
-            
-            leaf_ox[i] += (e->dash_vx * 0.6) * dt_render; 
-            leaf_oy[i] += 2.0 * dt_render;                
-            
-            double boss_x = e->base.x;
-            double boss_y = e->base.y;
-
-            for(int k = 0; k < 120; k++) { 
-                
-                double noise_x = fmod(fabs(sin(k * 99.123) * 12345.67), 36.0); 
-                double noise_y = fmod(fabs(cos(k * 88.321) * 76543.21), 36.0); 
-                
-                double move_x = noise_x + leaf_ox[i]; 
-                double move_y = noise_y + leaf_oy[i]; 
-                
-                move_x = fmod(move_x, 36.0);
-                if(move_x < 0) move_x += 36.0;
-                move_x -= 18.0;
-                
-                move_y = fmod(move_y, 36.0);
-                if(move_y < 0) move_y += 36.0;
-                move_y -= 18.0;
-                
-                if(move_x*move_x + move_y*move_y < 324.0) {
-                    int psx = SX(boss_x + move_x);
-                    int psy = SY(boss_y + move_y);
-                    
-                    unsigned int leaf_col;
-                    if(k % 3 == 0)      leaf_col = 0x228B22FF; 
-                    else if(k % 3 == 1) leaf_col = 0x32CD32FF; 
-                    else                leaf_col = 0x8B4513FF; 
-                    
-                    if(k % 2 == 0) draw_rect(&window, psx, psy, 10, 6, leaf_col); 
-                    else           draw_rect(&window, psx, psy, 6, 10, leaf_col); 
-                }
-            }
-        }
+        if(c->has_weather_fx)
+            draw_weather_fx(e,i,dt);
     }
 }
 
@@ -468,18 +497,31 @@ void draw_menu(){
     int sw=(int)cfg.screen_w, sh=(int)cfg.screen_h;
     int cx=sw/2;
     draw_rect(&window,0,0,sw,sh,0x0A0F1AFF);
-    for(int i=0;i<40;i++){
-        int sx2=(i*97+13)%sw, sy2=(i*137+41)%sh, sr=2+(i%3);
-        draw_rect_centered(&window,sx2,sy2,sr,sr,0xFFFFFF44);
-    }
-    for(int row=0;row<25;row++){
-        int rw=sw*5/12-row*18, rx=cx-rw/2+row*9, ry=sh-sh*44/100+row*13;
-        if(ry>0&&ry<sh&&rw>0) draw_rect(&window,rx,ry,rw,14,0x1E2A3AFF);
-    }
+
+	for(int i=0;i<80;i++){
+		int sx2=(i*97+13)%sw, sy2=(i*137+41)%sh;
+
+		if(i%3==0){
+			// big star
+			int s=3;
+			draw_rect(&window,sx2-s,sy2,  s*2+1,1,0xFFFFFFAA);
+			draw_rect(&window,sx2,sy2-s,  1,s*2+1,0xFFFFFFAA);
+			draw_rect(&window,sx2-s+1,sy2-1,s*2-1,1,0xFFFFFF66);
+			draw_rect(&window,sx2-1,sy2-s+1,1,s*2-1,0xFFFFFF66);
+		}else{
+			// small star
+			int s=2;
+			draw_rect(&window,sx2-s,sy2,  s*2+1,1,0xFFFFFF88);
+			draw_rect(&window,sx2,sy2-s,  1,s*2+1,0xFFFFFF88);
+		}
+	}
+
     draw_text_centered(&window,&font,"VERTICAL",cx,sh*18/100,5,5,3,5,0xC8DCF0FF);
     draw_text_centered(&window,&font,"CLIMBER", cx,sh*25/100,5,5,3,5,0x88BBDDFF);
     draw_text_centered(&window,&font,"REACH THE SUMMIT",cx,sh*33/100,1,1,2,1,0x7090B0FF);
+
     int bw=sw/6, bh=sh*6/100, bx=cx-bw/2;
+
     if(menu_sub_state==0){
         draw_btn(bx,sh*40/100,bw,bh,"NEW GAME",0x1A4A2AFF);
         draw_btn(bx,sh*48/100,bw,bh,"OPTIONS", 0x1A2A4AFF);

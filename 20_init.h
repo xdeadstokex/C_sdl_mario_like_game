@@ -43,7 +43,8 @@ static void snap_camera(){
 // RESET GAME  (new game / play again)
 //###############################################
 void reset_game(){
-    load_world(WORLD_FILE, 0, &cfg,
+	init_enemy_cfg(ENEMY_CFG);
+    load_world(WORLD_FILE, 0, &cfg, ENEMY_CFG,
         terrains,&terrain_count_actual,TERRAIN_COUNT,
         enemies, &enemy_count_actual,  ENEMY_COUNT,
         coins,   &coin_count_actual,   COIN_COUNT,
@@ -73,6 +74,7 @@ void reset_game(){
     player.score=0;
     reset_player();
     snap_camera();
+
 }
 
 //###############################################
@@ -80,8 +82,8 @@ void reset_game(){
 //###############################################
 void reload_world(){
     double saved_px_per_m = cfg.px_per_m;  // preserve zoom level
-
-    load_world(WORLD_FILE, 1, &cfg,
+	init_enemy_cfg(ENEMY_CFG);
+    load_world(WORLD_FILE, 1, &cfg, ENEMY_CFG,
         terrains,&terrain_count_actual,TERRAIN_COUNT,
         enemies, &enemy_count_actual,  ENEMY_COUNT,
         coins,   &coin_count_actual,   COIN_COUNT,

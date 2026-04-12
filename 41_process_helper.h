@@ -15,6 +15,10 @@ static inline double dsign(double v){ return v>0?1.0:v<0?-1.0:0.0; }
 void reset_player();
 void reload_world();
 void reset_game();
+
+static inline void tele_weather_boss(struct enemy_data* e);
+
+#define HIT_BOX(x,y,w,h, bx,by,bw,bh) check_two_box_2d_hit_centralized((x),(y),(w),(h),(bx),(by),(bw),(bh))
 //###############################################
 // PLAYER SENSORS
 // 4 thin rects flush on each player face.
@@ -45,10 +49,10 @@ static inline void clear_sensor_flags(){
 // Test all 4 sensors against a rect, write results and OR into active flags
 static inline void sense_one(double tx, double ty, double tw, double th,
                               int* hd, int* hu, int* hl, int* hr){
-    *hd=check_two_box_2d_hit_centralized(player.sensors.dx,player.sensors.dy,player.sensors.dw,player.sensors.dh,tx,ty,tw,th);
-    *hu=check_two_box_2d_hit_centralized(player.sensors.ux,player.sensors.uy,player.sensors.uw,player.sensors.uh,tx,ty,tw,th);
-    *hl=check_two_box_2d_hit_centralized(player.sensors.lx,player.sensors.ly,player.sensors.lw,player.sensors.lh,tx,ty,tw,th);
-    *hr=check_two_box_2d_hit_centralized(player.sensors.rx,player.sensors.ry,player.sensors.rw,player.sensors.rh,tx,ty,tw,th);
+    *hd=HIT_BOX(player.sensors.dx,player.sensors.dy,player.sensors.dw,player.sensors.dh,tx,ty,tw,th);
+    *hu=HIT_BOX(player.sensors.ux,player.sensors.uy,player.sensors.uw,player.sensors.uh,tx,ty,tw,th);
+    *hl=HIT_BOX(player.sensors.lx,player.sensors.ly,player.sensors.lw,player.sensors.lh,tx,ty,tw,th);
+    *hr=HIT_BOX(player.sensors.rx,player.sensors.ry,player.sensors.rw,player.sensors.rh,tx,ty,tw,th);
     player.sensors.d_active|=*hd; player.sensors.u_active|=*hu;
     player.sensors.l_active|=*hl; player.sensors.r_active|=*hr;
 }
@@ -352,230 +356,219 @@ void process_pobjs(double dt){
     }
 }
 
+
 //###############################################
 // ENEMY HELPERS
 //###############################################
+#define IS_BOSS(t) ((t)==ENEMY_BOSS || (t)==ENEMY_WEATHER_BOSS)
+#define CLAMP(x,a,b) ((x)<(a)?(a):((x)>(b)?(b):(x)))
+
+
+//-----------------------------------------------
+// projectile spawn (shared)
+//-----------------------------------------------
+static inline void spawn_projectile(struct enemy_data* e, double px, double speed){
+    for(int k=0;k<PROJ_COUNT;k++){
+        if(projectiles[k].active) continue;
+
+        int dir = (px > e->base.x) ? 1 : -1;
+        projectiles[k].active = 1;
+        projectiles[k].x = e->base.x;
+        projectiles[k].y = e->base.y;
+        projectiles[k].vx = dir * speed;
+        projectiles[k].vy = 0;
+        projectiles[k].dir = dir;
+        projectiles[k].type = PROJ_TYPE_ENEMY;
+        break;
+    }
+}
+
+//-----------------------------------------------
+// mage
+//-----------------------------------------------
+static inline int mage_in_range(struct enemy_data* e, double px, double py){
+    double dx = px - e->base.x;
+    double dy = py - e->base.y;
+
+    double max_dx = CLAMP(MAGE_RANGE_BASE + dy*MAGE_RANGE_SCALE_Y,
+                          MAGE_RANGE_MIN, MAGE_RANGE_MAX);
+
+    return fabs(dx) < max_dx && dy > MAGE_DY_MIN && dy < MAGE_DY_MAX;
+}
+
+static inline int terrain_hit_player(struct terrain_data* t, double px, double py){
+    double pfoot = py + cfg.player_h*0.5;
+    double top   = t->base.y - t->base.col_h*0.5;
+
+    return
+        fabs(px - t->base.x) < (t->base.col_w*0.5 + cfg.player_w*0.5 - TERRAIN_HIT_EPS_X) &&
+        (top - pfoot >= TERRAIN_HIT_Y_MIN) &&
+        (top - pfoot <  TERRAIN_HIT_Y_MAX) &&
+        player.base.vy >= 0;
+}
+
+//-----------------------------------------------
+// movement
+//-----------------------------------------------
 static inline void enemy_update_patrol(struct enemy_data* e, double dt){
-    double spd=1.0;
-    e->base.x+=e->patrol_dir*spd*dt;
-    if(e->base.x>=e->patrol_x_max){ e->base.x=e->patrol_x_max; e->patrol_dir=-1; }
-    if(e->base.x<=e->patrol_x_min){ e->base.x=e->patrol_x_min; e->patrol_dir= 1; }
+    e->base.x += e->patrol_dir * PATROL_SPEED * dt;
+
+    if(e->base.x >= e->patrol_x_max){
+        e->base.x = e->patrol_x_max;
+        e->patrol_dir = -1;
+    }
+    else if(e->base.x <= e->patrol_x_min){
+        e->base.x = e->patrol_x_min;
+        e->patrol_dir = 1;
+    }
 }
 
 static inline void enemy_update_dash(struct enemy_data* e, double dt, double px){
+    const enemy_cfg_t* c = &ENEMY_CFG[e->type];
+
     if(--e->action_timer <= 0 && !e->dashing){
         int tps = (int)(1.0/dt + 0.5);
 
-        int freq = (e->type == ENEMY_BOSS) ? ((e->hp <= 5) ? 30 : 50) : 100;
-        e->action_timer = (freq-20+(rand()%40))*tps/20;
-        e->dashing = tps*12/20;
-        e->dash_vx = (px>e->base.x) ? fabs(e->dash_vx) : -fabs(e->dash_vx);
-        if(e->type == ENEMY_BOSS){
-            for(int k = 0; k < PROJ_COUNT; k++){
-                if(!projectiles[k].active){
-                    projectiles[k].active = 1;
-                    projectiles[k].x = e->base.x;
-                    projectiles[k].y = e->base.y;
-                    int dir = (px > e->base.x) ? 1 : -1;
-                    projectiles[k].vx = dir * 8.0;
-                    projectiles[k].vy = 0;
-                    projectiles[k].dir = dir;
-                    projectiles[k].type = 1;
-                    break;
-                }
-            }
-        }
-    }
-    
-    if(e->dashing > 0){
-        double speed_mult = (e->type == ENEMY_BOSS && e->hp <= 5) ? 1.5 : 1.0;
-        e->base.x += e->dash_vx * speed_mult * dt;
-        e->dashing--;
-        e->base.x = dclamp(e->base.x,e->patrol_x_min,e->patrol_x_max);
-    }
-}
-static inline void tele_weather_boss(struct enemy_data* e){
-    struct{
-        double pmin;
-        double pmax;
-        double y_file;
-    } plat[3] = {
-        {1.3, 4, 117.5},
-        {14.5, 16.5, 116.3},
-        {9.2, 12.2, 118}
-    };
-    int current = -1;
-    for(int i = 0; i < 3; i++){
-        if(fabs(e->patrol_x_min - plat[i].pmin) < 0.1){
-            current = i;
-            break;
-        }
-    }
-    int next;
-    do{
-        next = rand()%3;
-    } while(next == current && current != -1);
-    e->patrol_x_min = plat[next].pmin;
-    e->patrol_x_max = plat[next].pmax;
-    double ch = e->base.col_h;
-    double py = cfg.world_h - plat[next].y_file - ch;
-    e->patrol_y = py + ch / 2.0;
+        int freq = c->dash_freq;
+        if(c->is_boss && e->hp <= 5 && c->dash_freq_lowhp)
+            freq = c->dash_freq_lowhp;
 
-    e->base.x = (e->patrol_x_min + e->patrol_x_max) / 2.0;
-    e->base.y = e->patrol_y;
+        e->action_timer = (freq - DASH_FREQ_OFFSET + rand()%DASH_FREQ_RAND) * tps/20;
+        e->dashing = tps*DASH_TIME/DASH_TIME_DIV;
+
+        double vx = fabs(e->dash_vx);
+        e->dash_vx = (px > e->base.x) ? vx : -vx;
+
+        if(c->is_boss)
+            spawn_projectile(e, px, DASH_PROJ_SPEED_BOSS);
+    }
+
+    if(e->dashing <= 0) return;
+
+    double mult = c->dash_speed_mult;
+    if(c->is_boss && e->hp <= 5 && c->dash_speed_mult_lowhp)
+        mult = c->dash_speed_mult_lowhp;
+
+    e->base.x += e->dash_vx * mult * dt;
+    e->dashing--;
+
+    e->base.x = dclamp(e->base.x, e->patrol_x_min, e->patrol_x_max);
+}
+
+//-----------------------------------------------
+// weather boss teleport
+//-----------------------------------------------
+static inline void tele_weather_boss(struct enemy_data* e){
+    struct { double min,max,y; } p[WEATHER_PLAT_COUNT] = {
+        {1.3, 4.0, 117.5},
+        {14.5,16.5,116.3},
+        {9.2,12.2,118.0}
+    };
+
+    int cur = -1;
+    for(int i=0;i<WEATHER_PLAT_COUNT;i++)
+        if(fabs(e->patrol_x_min - p[i].min) < 0.1){ cur=i; break; }
+
+    int next;
+    do{ next = rand()%WEATHER_PLAT_COUNT; } while(next==cur && cur!=-1);
+
+    e->patrol_x_min = p[next].min;
+    e->patrol_x_max = p[next].max;
+
+    double ch = e->base.col_h;
+    double py = cfg.world_h - p[next].y - ch;
+
+    e->patrol_y = py + ch*0.5;
+    e->base.x   = (e->patrol_x_min + e->patrol_x_max)*0.5;
+    e->base.y   = e->patrol_y;
 
     e->dash_vx = 0.0;
-    e->action_timer = 60 * cfg.tps / 20;
+    e->action_timer = WEATHER_RESET_CD * cfg.tps/20;
 }
 
+//-----------------------------------------------
+// combat
+//-----------------------------------------------
+static inline void enemy_stomped(struct enemy_data* e){
+    const enemy_cfg_t* c = &ENEMY_CFG[e->type];
+
+    play_sound(&sfx.hit);
+
+    if(--e->hp <= 0){
+        e->active = 0;
+        e->stun_timer = STUN_TIME_DEAD;
+        return;
+    }
+
+    e->active = 0;
+
+    int stun = c->stun_time;
+    if(c->is_boss && c->stun_time_boss)
+        stun = c->stun_time_boss;
+
+    e->stun_timer = stun * cfg.tps/20;
+
+    if(c->instant_recover){
+        e->active = 1;
+        e->stun_timer = 0;
+    }
+
+    if(c->teleport_on_hit){
+        tele_weather_boss(e);
+        e->active = 1;
+        e->stun_timer = 0;
+    }
+}
+
+static inline void player_hit_enemy(struct enemy_data* e, double px){
+    if(player.invincible) return;
+
+    const enemy_cfg_t* c = &ENEMY_CFG[e->type];
+
+    player.invincible = cfg.invincible_frames;
+    player.hp--;
+    play_sound(&sfx.hitted);
+
+    if(player.hp <= 0){
+        play_sound(&sfx.die);
+        reset_game();
+        return;
+    }
+
+    double push = dsign(px - e->base.x);
+    if(push==0) push=1;
+
+	player.base.vx = push * c->push_force;
+	player.base.vy = c->push_lift;
+
+    if(c->push_slow_time)
+        player.slow_timer = c->push_slow_time * cfg.tps/20;
+}
+
+
+//###############################################
+// COLLISION
+//###############################################
 static inline void enemy_vs_player(struct enemy_data* e, double px, double py){
+    double ex=e->base.x, ey=e->base.y;
     double ew=e->base.col_w, eh=e->base.col_h;
-    int stomp=check_two_box_2d_hit_centralized(
-                  player.sensors.dx,player.sensors.dy,player.sensors.dw,player.sensors.dh,
-                  e->base.x,e->base.y,ew,eh) && player.base.vy>0;
-    int body=!stomp&&check_two_box_2d_hit_centralized(
-                  px,py,cfg.player_w,cfg.player_h,e->base.x,e->base.y,ew,eh);
-    if(!stomp&&!body) return;
 
-    if(stomp){
-        play_sound(&sfx.hit);
-        if(--e->hp<=0){ 
-            e->active=0; 
-            e->stun_timer = 999999; 
-        }
-        else{ 
-            e->active=0; 
-            e->stun_timer = (e->type==ENEMY_BOSS) ? 20*cfg.tps/20 : 60*cfg.tps/20;
-            if(e->type == ENEMY_SWORD){
-                e->active = 1;
-                e->stun_timer = 0;
-            }
-            if(e->type == ENEMY_WEATHER_BOSS){
-                tele_weather_boss(e);
-                e->active = 1;      
-                e->stun_timer = 0;  
-            }
-        }
-        player.base.vy=(player.jump_boost_timer>0)?cfg.jump_boost_vy*0.7:cfg.jump_vy*0.7;
-    } 
-    else if(player.invincible==0){  
-        player.invincible=cfg.invincible_frames;
-        player.hp--;
-        play_sound(&sfx.hitted);
-        if(player.hp<=0){
-            play_sound(&sfx.die);
-            reset_game();
-        } else {
-            double push=dsign(px-e->base.x); if(push==0) push=1;
-            double force, lift;
-            if(e->type == ENEMY_BOSS){
-                force = 15.0;
-                lift = -7.0;
-                player.slow_timer = 100 * cfg.tps/20;
-            }
-            else if(e->type == ENEMY_SWORD){
-                force = 12.0;
-                lift = -6.0;
-            }
-            else if(e->type == ENEMY_WEATHER_BOSS){
-                force = 8.0;
-                lift = -5.0;
-            }
-            else if(e->type == ENEMY_MAGE){
-                force = 3.0;
-                lift = -3.0;
-            }
-            else{
-                force = 4.0;
-                lift = -3.5;
-            }
-            player.base.vx = push*force;
-            player.base.vy = lift;
-        }
+    if(player.base.vy>0 &&
+       HIT_BOX(player.sensors.dx,player.sensors.dy,
+               player.sensors.dw,player.sensors.dh,
+               ex,ey,ew,eh)){
+        enemy_stomped(e);
+
+        double vy = (player.jump_boost_timer>0)
+            ? cfg.jump_boost_vy
+            : cfg.jump_vy;
+
+        player.base.vy = vy * JUMP_BOUNCE_SCALE;
+        return;
     }
-}
 
-//###############################################
-// PROJECTILES (fireballs)
-//###############################################
-void process_projectiles(double dt){
-    for(int i=0;i<PROJ_COUNT;i++){
-        struct projectile_data* pr=&projectiles[i];
-        if(!pr->active) continue;
-
-        pr->x+=pr->vx*dt;
-        pr->y+=pr->vy*dt;
-
-        // deactivate if out of world bounds
-        if(pr->x<0||pr->x>cfg.world_w||pr->y<0||pr->y>cfg.world_h){
-            pr->active=0; continue;
-        }
-
-        // hit terrain
-        int hit_terrain=0;
-        for(int j=0;j<terrain_count_actual;j++){
-            if(terrains[j].broken) continue;
-            if(check_two_box_2d_hit_centralized(
-                pr->x,pr->y,0.2,0.2,
-                terrains[j].base.x,terrains[j].base.y,
-                terrains[j].base.col_w,terrains[j].base.col_h)){
-                hit_terrain=1; break;
-            }
-        }
-        if(hit_terrain){ pr->active=0; continue; }
-
-        if(pr->type == 1){
-            if(check_two_box_2d_hit_centralized(pr->x, pr->y, 0.2, 0.2, 
-                                                player.base.x, player.base.y, cfg.player_w, cfg.player_h)){ 
-                pr->active = 0;
-                if(player.invincible == 0){
-                    player.invincible = cfg.invincible_frames;
-                    player.hp--;
-                    play_sound(&sfx.hitted);
-                    if(player.hp <= 0){
-                        play_sound(&sfx.die);
-                        reset_game();
-                    }
-                    else{
-                        player.base.vx = pr->dir*5.0;
-                        player.base.vy = -3.0;
-                    }
-                }
-            }
-            continue;
-        }
-
-        // hit enemy
-        for(int j=0;j<enemy_count_actual;j++){
-            struct enemy_data* e=&enemies[j];
-            if(!e->active) continue;
-            if(check_two_box_2d_hit_centralized(
-                pr->x,pr->y,0.2,0.2,
-                e->base.x,e->base.y,e->base.col_w,e->base.col_h)){
-                pr->active=0; 
-                
-                if(--e->hp<=0){
-                    play_sound(&sfx.hit);
-                    e->active=0;
-                    e->stun_timer = 999999;
-                } 
-                else {
-                    e->active=0;
-                    e->stun_timer = (e->type==ENEMY_BOSS) ? 15*cfg.tps/20 : 600*cfg.tps/20;
-                    if(e->type == ENEMY_SWORD){
-                        e->active = 1;
-                        e->stun_timer = 0;
-                    }
-                    if(e->type == ENEMY_WEATHER_BOSS){
-                        tele_weather_boss(e);
-                        e->active = 1;      
-                        e->stun_timer = 0;  
-                    }
-                }
-                break;
-            }
-        }
-    }
+    if(HIT_BOX(px,py,cfg.player_w,cfg.player_h, ex,ey,ew,eh))
+        player_hit_enemy(e,px);
 }
 
 //###############################################
@@ -583,110 +576,197 @@ void process_projectiles(double dt){
 //###############################################
 void process_enemies(double dt){
     double px=player.base.x, py=player.base.y;
+
     for(int i=0;i<enemy_count_actual;i++){
-        struct enemy_data* e=&enemies[i];
+        struct enemy_data* e = &enemies[i];
+        const enemy_cfg_t* c = &ENEMY_CFG[e->type];
 
-        if(e->hp <= 0 && e->type != ENEMY_BOSS && e->type != ENEMY_WEATHER_BOSS) {
-            double trigger_y = e->base.y + 20.0;
-            if(trigger_y > cfg.world_h - 2.0) trigger_y = cfg.world_h - 2.0;
+        // --- revive ---
+        if(e->hp<=0 && !IS_BOSS(e->type)){
+            double ty = CLAMP(e->base.y + REVIVE_OFFSET_Y,
+                              0.0,
+                              cfg.world_h - WORLD_EDGE_PAD);
 
-            if(py > trigger_y && py > e->base.y) {
-                e->hp = (e->type == ENEMY_SWORD || e->type == ENEMY_MAGE) ? 2 : 1;
+            if(py>ty && py>e->base.y){
+                e->hp = c->max_hp;
                 e->active = 1;
                 e->stun_timer = 0;
-                e->base.x = (e->patrol_x_min + e->patrol_x_max) / 2.0;
+                e->base.x = (e->patrol_x_min + e->patrol_x_max)*0.5;
             }
         }
 
+        // --- inactive ---
         if(!e->active){
-            if((e->type == ENEMY_BOSS || e->type == ENEMY_WEATHER_BOSS) && e->hp <= 0) continue; 
-            if(--e->stun_timer <= 0 && e->hp > 0){
-                e->active = 1;
-            }
+            if(IS_BOSS(e->type) && e->hp<=0) continue;
+            if(--e->stun_timer<=0 && e->hp>0) e->active=1;
             continue;
         }
 
         if(!e->dashing) enemy_update_patrol(e,dt);
 
-        if(e->type == ENEMY_DASHER || e->type == ENEMY_BOSS){
+        // --- behavior ---
+        switch(e->type){
+
+        case ENEMY_DASHER:
+        case ENEMY_BOSS:
             enemy_update_dash(e,dt,px);
-        }
-        else if(e->type == ENEMY_SHOOTER){
-            if(--e->action_timer <= 0){
-                e->action_timer = 60 * cfg.tps/20; //3 second/shot
-                for(int k = 0; k < PROJ_COUNT; k++){
-                    if(!projectiles[k].active){
-                        projectiles[k].active = 1;
-                        projectiles[k].x = e->base.x;
-                        projectiles[k].y = e->base.y;
-                        int dir = (px > e->base.x) ? 1 : -1;
-                        projectiles[k].vx = dir * 6.0; //slower than player shot
-                        projectiles[k].vy = 0;
-                        projectiles[k].dir = dir;
-                        projectiles[k].type = 1;
+            break;
+
+        case ENEMY_SHOOTER:
+            if(--e->action_timer<=0){
+                e->action_timer = c->shoot_cd * cfg.tps/20;
+                spawn_projectile(e,px,c->proj_speed);
+            }
+            break;
+
+        case ENEMY_MAGE:
+            if(e->action_timer>0) e->action_timer--;
+
+            if(e->action_timer<=0 && mage_in_range(e,px,py)){
+                for(int k=0;k<terrain_count_actual;k++){
+                    struct terrain_data* t = &terrains[k];
+
+                    if(t->broken || t->warning_timer>0) continue;
+                    if(t->base.col_w>10 || t->base.col_h>10) continue;
+
+                    if(terrain_hit_player(t,px,py)){
+                        t->warning_timer = c->mage_warn * cfg.tps/20;
+                        e->action_timer  = c->mage_cd   * cfg.tps/20;
                         break;
                     }
                 }
             }
-        } 
-        else if(e->type == ENEMY_MAGE){
-            if(e->action_timer > 0) e->action_timer--;
-            
-            if(e->action_timer <= 0){
-                double dx = px - e->base.x;
-                double dy = py - e->base.y;
-                double max_dx = 6.0 + dy*0.7;
-                if(max_dx < 2.0) max_dx = 2.0;
-                if(max_dx > 14.0) max_dx = 14.0;
-                int in_range = (fabs(dx) < max_dx) && (dy > -8.0) && (dy < 12.0);
-                if(in_range){
-                    for(int k = 0; k < terrain_count_actual; k++){
-                        if(terrains[k].broken) continue;
-                        if(terrains[k].warning_timer > 0) continue;
-                        if(terrains[k].base.col_w > 10 || terrains[k].base.col_h > 10) continue;
+            break;
 
-                        double tx = terrains[k].base.x;
-                        double ty = terrains[k].base.y;
-                        
-                        double player_foot = py + cfg.player_h / 2.0;
-                        double block_top   = ty - terrains[k].base.col_h / 2.0;
+        case ENEMY_WEATHER_BOSS:
+            if(--e->action_timer<=0){
+                e->action_timer =
+                    (c->weather_cd_base + rand()%c->weather_cd_var) * cfg.tps/20;
 
-                        int hit_x = fabs(px - tx) < (terrains[k].base.col_w/2.0 + cfg.player_w/2.0 - 0.05);
-                        int hit_y = (block_top - player_foot >= -0.1) && (block_top - player_foot < 0.2) && (player.base.vy >= 0);
-
-                        if(hit_x && hit_y){
-                            terrains[k].warning_timer = 40 * cfg.tps / 20; 
-                            e->action_timer = 100 * cfg.tps / 20;          
-                            break;
-                        }
-                    }
-                }
+                e->dash_vx = c->weather_dash_speed * ((rand()%2)?1:-1);
             }
+
+            double dx = px - e->base.x;
+            double dy = py - e->base.y;
+
+            if(dx*dx + dy*dy < c->weather_push_range_sq)
+                player.base.vx += e->dash_vx * c->weather_push_scale * dt;
+            break;
         }
-        else if(e->type == ENEMY_WEATHER_BOSS){
-            if(--e->action_timer <= 0){
-                e->action_timer = (200 + rand()%200)*cfg.tps/20;
-                int random_dir = (rand()%2 == 0) ? 1 : -1;
-                e->dash_vx = 20.0 * random_dir;
-            }
-            double dx = px - e->base.x, dy = py - e->base.y;
-            if(dx*dx + dy*dy < 324.0) {
-                player.base.vx += e->dash_vx * 0.35 * dt;
-            }
-        }
-        
-        e->base.y=e->patrol_y;
+
+        e->base.y = e->patrol_y;
         enemy_vs_player(e,px,py);
     }
 }
 
+//###############################################
+// HELPERS
+//###############################################
+#define OUT_WORLD(x,y) ((x)<0||(x)>cfg.world_w||(y)<0||(y)>cfg.world_h)
+#define PROJ_SIZE 0.2
+
+static inline int proj_hit_any_terrain(double x,double y){
+    for(int j=0;j<terrain_count_actual;j++){
+        struct terrain_data* t = &terrains[j];
+        if(t->broken) continue;
+
+        if(HIT_BOX(x,y,PROJ_SIZE,PROJ_SIZE, t->base.x,t->base.y, t->base.col_w,t->base.col_h)) return 1;
+    }
+    return 0;
+}
+
+static inline void handle_player_hit(struct projectile_data* pr){
+    if(!HIT_BOX(pr->x,pr->y,PROJ_SIZE,PROJ_SIZE,
+                player.base.x,player.base.y,
+                cfg.player_w,cfg.player_h)) return;
+
+    pr->active = 0;
+
+    if(player.invincible) return;
+
+    player.invincible = cfg.invincible_frames;
+    player.hp--;
+    play_sound(&sfx.hitted);
+
+    if(player.hp <= 0){
+        play_sound(&sfx.die);
+        reset_game();
+    }else{
+        player.base.vx = pr->dir * 5.0;
+        player.base.vy = -3.0;
+    }
+}
+
+static inline void handle_enemy_hit(struct projectile_data* pr){
+    for(int j=0;j<enemy_count_actual;j++){
+        struct enemy_data* e = &enemies[j];
+        if(!e->active) continue;
+
+        if(!HIT_BOX(pr->x,pr->y,PROJ_SIZE,PROJ_SIZE,
+                    e->base.x,e->base.y,
+                    e->base.col_w,e->base.col_h)) continue;
+
+        const enemy_cfg_t* c = &ENEMY_CFG[e->type];
+
+        pr->active = 0;
+
+        if(--e->hp <= 0){
+            play_sound(&sfx.hit);
+            e->active = 0;
+            e->stun_timer = STUN_TIME_DEAD;
+        }else{
+            e->active = 0;
+
+            int stun = c->is_boss && c->stun_time_boss
+                       ? c->stun_time_boss
+                       : c->stun_time;
+
+            e->stun_timer = stun * cfg.tps/20;
+
+            if(c->instant_recover){
+                e->active = 1;
+                e->stun_timer = 0;
+            }
+
+            if(c->teleport_on_hit){
+                tele_weather_boss(e);
+                e->active = 1;
+                e->stun_timer = 0;
+            }
+        }
+        break;
+    }
+}
+
+//###############################################
+// PROJECTILES
+//###############################################
+void process_projectiles(double dt){
+    for(int i=0;i<PROJ_COUNT;i++){
+        struct projectile_data* pr = &projectiles[i];
+        if(!pr->active) continue;
+
+        pr->x += pr->vx * dt;
+        pr->y += pr->vy * dt;
+
+        if(OUT_WORLD(pr->x,pr->y)){ pr->active = 0; continue; }
+        if(proj_hit_any_terrain(pr->x,pr->y)){ pr->active = 0; continue; }
+
+        if(pr->type == PROJ_TYPE_ENEMY){
+            handle_player_hit(pr);
+            continue;
+        }
+
+        handle_enemy_hit(pr);
+    }
+}
 //###############################################
 // COINS
 //###############################################
 void process_coins(){
     for(int i=0;i<coin_count_actual;i++){
         if(coins[i].collected) continue;
-        if(check_two_box_2d_hit_centralized(
+        if(HIT_BOX(
             player.base.x,player.base.y,cfg.player_w,cfg.player_h,
             coins[i].x,coins[i].y,0.24,0.24)){
             coins[i].collected=1; player.score++;
@@ -705,7 +785,7 @@ void process_items(){
             if(items[i].respawn_timer>0&&--items[i].respawn_timer==0) items[i].active=1;
             continue;
         }
-        if(check_two_box_2d_hit_centralized(
+        if(HIT_BOX(
             player.base.x,player.base.y,cfg.player_w,cfg.player_h,
             items[i].x,items[i].y,0.24,0.24)){
             play_sound(&sfx.buff);
@@ -759,9 +839,7 @@ void process_win_check(){
     if(game_state==STATE_WIN) return;
     for(int i=0;i<decor_count_actual;i++){
         if(!decors[i].is_teleporter) continue;
-        if(check_two_box_2d_hit_centralized(
-            player.base.x,player.base.y,cfg.player_w,cfg.player_h,
-            decors[i].x,decors[i].y,decors[i].w,decors[i].h)){
+        if(HIT_BOX(player.base.x,player.base.y,cfg.player_w,cfg.player_h, decors[i].x,decors[i].y,decors[i].w,decors[i].h)){
             play_sound(&sfx.win);
             game_state=STATE_WIN; return;
         }
