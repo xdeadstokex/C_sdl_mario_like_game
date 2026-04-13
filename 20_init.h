@@ -25,7 +25,6 @@ void reset_player(){
     player.slow_timer = 0;
     player.hp = 5;
     player.fireball_ammo = 0;
-    // init sensors from starting position so first frame collision is valid
     update_player_sensors();
     clear_sensor_flags();
 }
@@ -43,7 +42,7 @@ static void snap_camera(){
 // RESET GAME  (new game / play again)
 //###############################################
 void reset_game(){
-	init_enemy_cfg(ENEMY_CFG);
+    init_enemy_cfg(ENEMY_CFG);
     load_world(WORLD_FILE, 0, &cfg, ENEMY_CFG,
         terrains,&terrain_count_actual,TERRAIN_COUNT,
         enemies, &enemy_count_actual,  ENEMY_COUNT,
@@ -54,7 +53,6 @@ void reset_game(){
         pobjs,   &pobj_count_actual,   POBJ_COUNT,
         &player.respawn_x, &player.respawn_y);
 
-    // screen dims come from window, not file
     cfg.screen_w = (double)window.w;
     cfg.screen_h = (double)window.h;
 
@@ -66,23 +64,24 @@ void reset_game(){
         }
         terrains[i].warning_timer = 0;
     }
-    // scale all frame-count timers from base 20 TPS to actual TPS
     double tps_scale = (double)cfg.tps / 20.0;
     cfg.dash_frames       = (int)(6  * tps_scale);
     cfg.invincible_frames = (int)(40 * tps_scale);
 
     player.score=0;
     reset_player();
-    snap_camera();
 
+    if(lan.role == LAN_HOST) lan_reset_p2(&lan);
+
+    snap_camera();
 }
 
 //###############################################
 // RELOAD WORLD  (K key — preserves player)
 //###############################################
 void reload_world(){
-    double saved_px_per_m = cfg.px_per_m;  // preserve zoom level
-	init_enemy_cfg(ENEMY_CFG);
+    double saved_px_per_m = cfg.px_per_m;
+    init_enemy_cfg(ENEMY_CFG);
     load_world(WORLD_FILE, 1, &cfg, ENEMY_CFG,
         terrains,&terrain_count_actual,TERRAIN_COUNT,
         enemies, &enemy_count_actual,  ENEMY_COUNT,
@@ -93,7 +92,7 @@ void reload_world(){
         pobjs,   &pobj_count_actual,   POBJ_COUNT,
         &player.respawn_x, &player.respawn_y);
 
-    cfg.px_per_m = saved_px_per_m;         // restore zoom
+    cfg.px_per_m = saved_px_per_m;
     cfg.screen_w = (double)window.w;
     cfg.screen_h = (double)window.h;
 
@@ -126,14 +125,12 @@ int init(){
     game_state=STATE_MENU;
     menu_sub_state=0;
 
-    // fallback spawn
     player.respawn_x=10.0;
     player.respawn_y=138.0;
 
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
         printf("SDL_mixer Error: %s\n", Mix_GetError());
     }
-
 
     load_sound(&sfx.jump,   "assets/jump.mp3");
     load_sound(&sfx.dash,   "assets/dash.mp3");
@@ -147,11 +144,14 @@ int init(){
     load_sound(&sfx.theme,   "assets/theme.mp3");
     load_sound(&sfx.fireball, "assets/fireball.mp3");
     load_sound(&sfx.bgm_menu, "assets/menu.mp3");
-    
     load_sound(&sfx.bgm_play_low_layer, "assets/low.mp3");
     load_sound(&sfx.bgm_play_high_layer, "assets/high.mp3");
     play_sound_loop(&sfx.bgm_menu);
+
+    lan_init_ctx(&lan);
+
     reset_game();
+	init_menu_rects(&gui, cfg.screen_w, cfg.screen_h);
     return 1;
 }
 

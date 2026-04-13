@@ -15,11 +15,9 @@
 #define SW       ((int)cfg.screen_w)
 #define SH       ((int)cfg.screen_h)
 
-// Draw a rect centered at world pos (meters)
 #define WRECT(wx,wy,ww,wh,col) \
     draw_rect_centered(&window, SX(wx), SY(wy), SP(ww), SP(wh), col)
 
-// Off-screen cull check (top-left origin rect)
 #define CULL(sx,sy,sw2,sh2) \
     ((sy)+(sh2)<0 || (sy)>SH || (sx)+(sw2)<0 || (sx)>SW)
 
@@ -60,7 +58,6 @@ void draw_background(){
     }
     draw_rect(&window, 0, 0, SW, SH, bg);
 
-    // Tiled star-field dots (3 bands, coarse→fine top→bottom)
     double ht = h_m / cfg.world_h;
     static const int    TILE_SZ[3] = {192, 96, 48};
     static const double BAND_Y0[3] = {0.0, 0.33, 0.66};
@@ -111,38 +108,54 @@ void draw_terrain(){
 }
 
 //###############################################
-// PLAYER
+// PLAYER RENDERING  (shared for P1 and P2)
+// is_p2_colors: 1 = orange body/green cap, 0 = blue body/gold cap
 //###############################################
-void draw_player(){
-    if(player.invincible>0 && (player.invincible/3)%2==0) return;
+static void draw_player_gfx(struct player_data* p, int is_p2_colors, const char* label){
+    if(p->invincible>0 && (p->invincible/3)%2==0) return;
 
-    int spx=SX(player.base.x), spy=SY(player.base.y);
+    int spx=SX(p->base.x), spy=SY(p->base.y);
     int pw=SP(cfg.player_w), ph=SP(cfg.player_h);
     int hw=SP(0.20), hh=SP(0.18), es=SP(0.05);
 
-    unsigned int body = 0x4169E1FF;
-    if(player.edge_grab)              body=0x00CED1FF;
-    else if(player.jump_boost_timer>0)  body=0xFFAA00FF;
-    else if(player.speed_boost_timer>0) body=0x00FFCCFF;
+    unsigned int body = is_p2_colors ? 0xE06020FF : 0x4169E1FF;
+    unsigned int cap  = is_p2_colors ? 0x44CC44FF : 0xFFD700FF;
+    if(p->edge_grab)              body = is_p2_colors ? 0x20D0D0FF : 0x00CED1FF;
+    else if(p->jump_boost_timer>0)  body = is_p2_colors ? 0xFFCC00FF : 0xFFAA00FF;
+    else if(p->speed_boost_timer>0) body = is_p2_colors ? 0x20FFAAFF : 0x00FFCCFF;
 
     draw_rect_centered(&window,spx,spy,pw,ph,body);
-    draw_rect_centered(&window,spx,spy-ph/2-hh/2,hw,hh,0xFFD700FF);
+    draw_rect_centered(&window,spx,spy-ph/2-hh/2,hw,hh,cap);
 
-    int ex = (player.last_move_dir>0) ? spx+es : spx-es;
+    int ex=(p->last_move_dir>0) ? spx+es : spx-es;
     draw_rect_centered(&window,ex,spy-ph/2-hh/2-es/2,es,es,0x222222FF);
 
-    if(player.dashing>0){
-        for(int k=1;k<=3;k++){
+    if(p->dashing>0){
+        for(int k=1;k<=3;k++)
             draw_rect_centered(&window,
-                spx - player.dash_dir*k*SP(0.14), spy,
+                spx - p->dash_dir*k*SP(0.14), spy,
                 pw-k*SP(0.05), ph-k*SP(0.05), 0xFFFFFF22);
-        }
     }
-    if(player.edge_grab){
-        int hx=spx+player.grab_wall_dir*(pw/2+SP(0.03)), hs=SP(0.06);
-        draw_rect_centered(&window,hx,spy-hs,hs,SP(0.05),0xFFD700FF);
-        draw_rect_centered(&window,hx,spy+hs,hs,SP(0.05),0xFFD700FF);
+    if(p->edge_grab){
+        int hx=spx+p->grab_wall_dir*(pw/2+SP(0.03)), hs=SP(0.06);
+        draw_rect_centered(&window,hx,spy-hs,hs,SP(0.05),cap);
+        draw_rect_centered(&window,hx,spy+hs,hs,SP(0.05),cap);
     }
+    if(label)
+        draw_text_centered(&window,&font,label,spx,spy-ph/2-hh-SP(0.15),1,1,2,1,0xFFFFFFCC);
+}
+
+void draw_player(){
+    // On client: local player IS p2 (orange). On host/solo: local player IS p1 (blue).
+    draw_player_gfx(&player, lan.role==LAN_CLIENT, NULL);
+}
+
+void draw_p2(){
+    if(lan.role==LAN_OFF) return;
+    struct player_data* p=&lan.p2;
+    if(p->hp<=0) return;
+    // On client: lan.p2 is the host's character (p1, blue). On host: lan.p2 is client (orange).
+    draw_player_gfx(p, lan.role==LAN_HOST, lan.role==LAN_CLIENT ? "P1" : "P2");
 }
 
 void draw_player_sensors(){
@@ -183,8 +196,8 @@ static inline unsigned int enemy_color(struct enemy_data* e,const enemy_cfg_t* c
 
 static void draw_weather_fx(struct enemy_data* e,int i){
     double t = tps_timer.time;
-    double ox = t * 2.5;          // steady rightward drift
-    double oy = t * 3.0;          // steady downward drift
+    double ox = t * 2.5;
+    double oy = t * 3.0;
     double bx = e->base.x, by = e->base.y;
     for(int k=0;k<120;k++){
         double nx=fmod(fabs(sin(k*99.123)*12345.67),36.0);
@@ -238,10 +251,10 @@ void draw_coins(){
 //###############################################
 void draw_items(){
     static const unsigned int ITEM_COLS[4][3] = {
-        {0,0,0},                          // unused (type 0)
-        {0x00FFFFFF,0x00FFFFFF,0x00AAFFFF}, // type 1 - speed
-        {0xFFFF00FF,0xFFFF00FF,0xFFAA00FF}, // type 2 - jump
-        {0xCC1100FF,0xFF4400FF,0xFFFF00FF}, // type 3 - fireball
+        {0,0,0},
+        {0x00FFFFFF,0x00FFFFFF,0x00AAFFFF},
+        {0xFFFF00FF,0xFFFF00FF,0xFFAA00FF},
+        {0xCC1100FF,0xFF4400FF,0xFFFF00FF},
     };
     for(int i=0;i<item_count_actual;i++){
         if(!items[i].active) continue;
@@ -276,16 +289,13 @@ void draw_decors(){
         if(d->is_teleporter){
             draw_rect_centered(&window,dx,dy,dw+SP(0.12),dh+SP(0.12),0x00FFFF22);
             draw_rect_centered(&window,dx,dy,dw+SP(0.06),dh+SP(0.06),0x00FFFF11);
-            // frame
             draw_rect_centered(&window,dx,          dy,              dw,     SP(0.04),0x88EEFFFF);
             draw_rect_centered(&window,dx,          dy+dh/2-SP(0.02),dw,     SP(0.04),0x88EEFFFF);
             draw_rect_centered(&window,dx-dw/2+SP(0.02),dy,          SP(0.04),dh,    0x88EEFFFF);
             draw_rect_centered(&window,dx+dw/2-SP(0.02),dy,          SP(0.04),dh,    0x88EEFFFF);
-            // bars
             draw_rect_centered(&window,dx-dw/5,dy,SP(0.03),dh-SP(0.04),0x66CCDDFF);
             draw_rect_centered(&window,dx,     dy,SP(0.03),dh-SP(0.04),0x66CCDDFF);
             draw_rect_centered(&window,dx+dw/5,dy,SP(0.03),dh-SP(0.04),0x66CCDDFF);
-            // glow core
             draw_rect_centered(&window,dx,dy,dw/2,dh/2,0x00FFFF30);
             draw_rect_centered(&window,dx,dy,dw/4,dh/4,0x00FFFFFF);
             draw_text_centered(&window,&font,"ENTER",dx,dy-dh/2-SP(0.15),2,2,2,2,0x00FFDDFF);
@@ -330,14 +340,14 @@ void draw_projectiles(){
 }
 
 //###############################################
-// HUD
+// HUD  — P1 top-left, P2 top-right when in LAN
 //###############################################
 void draw_hud(){
     char buf[128];
     int cx=SW/2;
     int pad=SW*7/1000, row_h=SH*3/100, bar_w=SW*11/100;
 
-// top-left: coins / hp / ammo
+    // P1 — top-left
 #define HUD_ROW(yoff,fmt,val,col) \
     draw_rect(&window,pad,pad+(yoff),bar_w,row_h,0x00000088); \
     sprintf(buf,fmt,val); \
@@ -347,7 +357,23 @@ void draw_hud(){
     HUD_ROW(row_h*2+8,  "FIRE: %d", player.fireball_ammo, 0xFF6600FF);
 #undef HUD_ROW
 
-    // top-center: position block + progress bar
+    // P2 — top-right (only in LAN)
+    if(lan.role != LAN_OFF){
+        int p2_x = SW - pad - bar_w;
+#define HUD_ROW_P2(yoff,fmt,val,col) \
+    draw_rect(&window,p2_x,pad+(yoff),bar_w,row_h,0x00000088); \
+    sprintf(buf,fmt,val); \
+    draw_text(&window,&font,buf,p2_x+4,pad+(yoff)+4,2,2,2,2,col)
+        HUD_ROW_P2(0,         "COINS %d", lan.p2.score,         0xFFD700FF);
+        HUD_ROW_P2(row_h+4,   "HP: %d",   lan.p2.hp,            0xE06020FF);
+        HUD_ROW_P2(row_h*2+8, "FIRE: %d", lan.p2.fireball_ammo, 0xFF6600FF);
+#undef HUD_ROW_P2
+        draw_rect(&window,p2_x,pad,bar_w,row_h,0x00000088);
+        draw_text(&window,&font, lan.role==LAN_CLIENT ? "P1" : "P2",
+            p2_x+4,pad+4,2,2,2,2,0xFFFFFFCC);
+    }
+
+    // top-center: position + progress bar
     double h_m=cfg.world_h-player.base.y;
     if(h_m<0) h_m=0; if(h_m>cfg.world_h) h_m=cfg.world_h;
     double x_m=player.base.x;
@@ -375,85 +401,16 @@ void draw_hud(){
         draw_text_centered(&window,&font,"SPEED",cx+SW*4/100,hud_y+SH*14/1000,1,1,2,1,0xFFFFFFFF);
     }
 
-    // top-right badges
-    if(player.edge_grab){
-        draw_rect(&window,SW-SW*6/100,SH*25/1000,SW*5/100,SH*25/1000,0x00CED188);
-        draw_text(&window,&font,"GRAB",SW-SW*45/1000,SH*32/1000,1.2,1.2,2,1,0xFFFFFFFF);
-    }
-    if(player.god_mode){
-        draw_rect(&window,SW-SW*92/1000,pad,SW*83/1000,row_h,0xFF880099);
-        draw_text(&window,&font,"GOD",SW-SW*87/1000,pad+4,2,2,2,2,0xFFFFFFFF);
-    }
-}
-
-//###############################################
-// SHARED UI: BUTTON
-//###############################################
-static void draw_btn(int x,int y,int w,int h,const char* lbl,unsigned int col){
-    int hov=(mouse.x>=x&&mouse.x<=x+w&&mouse.y>=y&&mouse.y<=y+h);
-    draw_rect(&window,x,y,w,h,hov?(col|0x404040FF):col);
-    draw_rect(&window,x,y,w,2,0xFFFFFF55);
-    draw_rect(&window,x,y+h-2,w,2,0x00000055);
-    draw_text_centered(&window,&font,lbl,x+w/2,y+h/2-6,2,2,2,2,0xFFFFFFFF);
-}
-
-//###############################################
-// MENU
-//###############################################
-void draw_menu(){
-    int cx=SW/2;
-    draw_rect(&window,0,0,SW,SH,0x0A0F1AFF);
-
-    // stars
-    for(int i=0;i<80;i++){
-        int sx2=(i*97+13)%SW, sy2=(i*137+41)%SH;
-        int s=(i%3==0)?3:2;
-        unsigned int ca=(i%3==0)?0xFFFFFFAAu:0xFFFFFF88u;
-        unsigned int cb=(i%3==0)?0xFFFFFF66u:ca;
-        draw_rect(&window,sx2-s,sy2,  s*2+1,1,ca);
-        draw_rect(&window,sx2,  sy2-s,1,s*2+1,ca);
-        if(i%3==0){
-            draw_rect(&window,sx2-s+1,sy2-1,s*2-1,1,cb);
-            draw_rect(&window,sx2-1,sy2-s+1,1,s*2-1,cb);
+    // top-right badges (only solo — in LAN the P2 panel is there instead)
+    if(lan.role == LAN_OFF){
+        if(player.edge_grab){
+            draw_rect(&window,SW-SW*6/100,SH*25/1000,SW*5/100,SH*25/1000,0x00CED188);
+            draw_text(&window,&font,"GRAB",SW-SW*45/1000,SH*32/1000,1.2,1.2,2,1,0xFFFFFFFF);
         }
-    }
-
-    draw_text_centered(&window,&font,"VERTICAL",       cx,SH*18/100,5,5,3,5,0xC8DCF0FF);
-    draw_text_centered(&window,&font,"CLIMBER",        cx,SH*25/100,5,5,3,5,0x88BBDDFF);
-    draw_text_centered(&window,&font,"REACH THE SUMMIT",cx,SH*33/100,1,1,2,1,0x7090B0FF);
-
-    int bw=SW/6, bh=SH*6/100, bx=cx-bw/2;
-
-    if(menu_sub_state==0){
-        draw_btn(bx,SH*40/100,bw,bh,"NEW GAME",0x1A4A2AFF);
-        draw_btn(bx,SH*48/100,bw,bh,"OPTIONS", 0x1A2A4AFF);
-        draw_btn(bx,SH*56/100,bw,bh,"ABOUT",   0x2A1A4AFF);
-        draw_btn(bx,SH*64/100,bw,bh,"EXIT",    0x4A1A1AFF);
-        draw_text_centered(&window,&font,"ENTER FOR NEW GAME",cx,SH*72/100,1,1,2,1,0x445566FF);
-    } else if(menu_sub_state==1){
-        draw_text_centered(&window,&font,"CONTROLS",cx,SH*39/100,2,2,2,2,0xC8DCF0FF);
-        int lx=cx-SW/6, ly=SH*45/100, ls=SH*23/1000;
-        static const char* CTRL_LINES[]={
-            "A D      MOVE","SPACE    JUMP","SHIFT    DASH",
-            "A OR D   WALL GRAB","G        GOD MODE",
-            "K        RELOAD WORLD","ESC      PAUSE",NULL,"ESC      BACK"
-        };
-        for(int r=0;r<9;r++)
-            if(CTRL_LINES[r])
-                draw_text(&window,&font,CTRL_LINES[r],lx,ly+ls*r,1,1,2,1,
-                    r==8?0x8899AAFF:0xFFFFFFFF);
-    } else {
-        draw_text_centered(&window,&font,"ABOUT",cx,SH*39/100,2,2,2,2,0xC8DCF0FF);
-        int lx=cx-SW/6, ly=SH*45/100, ls=SH*25/1000;
-        static const char* ABOUT_LINES[]={
-            "MADE WITH SDL2 AND C","CLIMB 100M TO WIN","STOMP ENEMIES",
-            "BREAK CRACKED ROCKS","COLLECT GOLD COINS","GET STAR FOR BOOST",
-            NULL,"ESC  BACK"
-        };
-        for(int r=0;r<8;r++)
-            if(ABOUT_LINES[r])
-                draw_text(&window,&font,ABOUT_LINES[r],lx,ly+ls*r,1,1,2,1,
-                    r==7?0x8899AAFF:0xFFFFFFFF);
+        if(player.god_mode){
+            draw_rect(&window,SW-SW*92/1000,pad,SW*83/1000,row_h,0xFF880099);
+            draw_text(&window,&font,"GOD",SW-SW*87/1000,pad+4,2,2,2,2,0xFFFFFFFF);
+        }
     }
 }
 
@@ -479,26 +436,127 @@ void draw_chests(){
     }
 }
 
+
+void draw_stars(){
+    for(int i=0;i<80;i++){
+        int sx2=(i*97+13)%SW, sy2=(i*137+41)%SH;
+        int s=(i%3==0)?3:2;
+        unsigned int ca=(i%3==0)?0xFFFFFFAAu:0xFFFFFF88u;
+        unsigned int cb=(i%3==0)?0xFFFFFF66u:ca;
+
+        draw_rect(&window,sx2-s,sy2,  s*2+1,1,ca);
+        draw_rect(&window,sx2,  sy2-s,1,s*2+1,ca);
+
+        if(i%3==0){
+            draw_rect(&window,sx2-s+1,sy2-1,s*2-1,1,cb);
+            draw_rect(&window,sx2-1,sy2-s+1,1,s*2-1,cb);
+        }
+    }
+return;
+}
+
+static inline void draw_full_scr_overlay(unsigned int col){
+    unsigned int a = col & 0xFF;
+    if(a == 0) return;
+
+    draw_rect(&window, 0, 0, SW, SH, col);
+}
+
+void draw_menu(){
+    // titles
+    draw_btn(gui.menu_title_main);
+    draw_btn(gui.menu_title_hint);
+
+    if(menu_sub_state==0){
+        draw_btn(gui.menu_new_game);
+        draw_btn(gui.menu_options);
+        draw_btn(gui.menu_about);
+        draw_btn(gui.menu_host);
+        draw_btn(gui.menu_join);
+        draw_btn(gui.menu_exit);
+
+        draw_btn(gui.menu_enter_hint);
+    }
+    else if(menu_sub_state==1){
+        draw_btn(gui.menu_controls_title);
+        for(int i=0;i<8;i++) draw_btn(gui.menu_ctrl[i]);
+    }
+    else{
+        draw_btn(gui.menu_about_title);
+        for(int i=0;i<7;i++) draw_btn(gui.menu_about_lines[i]);
+    }
+}
+
+
+
 //###############################################
 // WIN / PAUSE SCREENS
 //###############################################
 void draw_win_screen(){
-    int cx=SW/2, bw=SW/6, bh=SH*6/100, bx=cx-bw/2;
-    draw_rect(&window,0,0,SW,SH,0x00000099);
-    draw_text_centered(&window,&font,"SUMMIT REACHED",cx,SH*28/100,4,4,3,4,0xFFFF88FF);
     char buf[32]; sprintf(buf,"COINS %d",player.score);
-    draw_text_centered(&window,&font,buf,cx,SH*42/100,2,2,2,2,0xFFD700FF);
-    draw_btn(bx,SH*50/100,bw,bh,"PLAY AGAIN",0x1A4A2AFF);
-    draw_btn(bx,SH*58/100,bw,bh,"MAIN MENU", 0x2A2A4AFF);
-    draw_text_centered(&window,&font,"SPACE TO REPLAY",cx,SH*68/100,1,1,2,1,0x667788FF);
+    int i=0; for(; buf[i] && i<255; i++) gui.win_score.text[i]=buf[i];
+    gui.win_score.text[i]=0;
+
+    draw_btn(gui.win_title);
+    draw_btn(gui.win_score);
+    draw_btn(gui.win_play_again);
+    draw_btn(gui.win_main_menu);
+    draw_btn(gui.win_hint);
 }
 
 void draw_pause_screen(){
-    int cx=SW/2, bw=SW/6, bh=SH*6/100, bx=cx-bw/2;
-    draw_rect(&window,0,0,SW,SH,0x00000099);
-    draw_text_centered(&window,&font,"PAUSED",cx,SH*42/100,4,4,2,4,0xFFFFFFFF);
-    draw_text_centered(&window,&font,"ESC TO RESUME",cx,SH*50/100,1,1,2,1,0x8899AAFF);
-    draw_btn(bx,SH*56/100,bw,bh,"MAIN MENU",0x2A2A4AFF);
+    draw_btn(gui.pause_title);
+    draw_btn(gui.pause_hint);
+    draw_btn(gui.pause_main_menu);
 }
 
+//###############################################
+// HOST / JOIN SCREENS
+//###############################################
+static inline void lan_draw_lobby(lan_ctx_t* lan){
+    static int c=0; c++;
+    int blink = (c/30)%2;
+
+    // reset dynamic colors (avoid sticking)
+    gui.hint_status.text_col = 0xFFAA44FF;
+    gui.hint_enter.text_col  = 0x44FF88FF;
+
+    // title
+    gui_set_text(&gui.title, lan->role==LAN_HOST?"HOST":"CLIENT");
+    draw_btn(gui.title);
+
+    // port
+    draw_btn(gui.port_label);
+    gui_field(&gui.port_box, lan->ui_port, lan->ui_focus==0, blink);
+
+    // ip
+    if(lan->role == LAN_CLIENT){
+        draw_btn(gui.ip_label);
+        gui_field(&gui.ip_box, lan->ui_ip, lan->ui_focus==1, blink);
+        draw_btn(gui.hint_tab);
+    }
+
+    // status / enter
+    if(!lan->sock_open){
+        gui_set_text(&gui.hint_enter,
+            lan->role==LAN_HOST?"ENTER  START HOSTING":"ENTER  CONNECT TO HOST");
+        draw_btn(gui.hint_enter);
+    }
+    else if(!lan->connected){
+        gui_set_text(&gui.hint_status, lan->status_msg);
+        draw_btn(gui.hint_status);
+    }
+    else{
+        gui.hint_status.text_col = 0xAADDFFFF;
+        gui_set_text(&gui.hint_status, lan->status_msg);
+        draw_btn(gui.hint_status);
+
+        if(lan->role == LAN_HOST){
+            gui_set_text(&gui.hint_enter, "ENTER  BEGIN GAME");
+            draw_btn(gui.hint_enter);
+        }
+    }
+
+    draw_btn(gui.hint_esc);
+}
 #endif

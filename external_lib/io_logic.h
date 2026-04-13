@@ -74,6 +74,7 @@ signal_data key_capslock;
 signal_data key_shift_l; signal_data key_shift_r;
 signal_data key_ctrl_l; signal_data key_ctrl_r;
 signal_data key_alt_left; signal_data key_alt_right;
+signal_data key_period;
 };
 
 

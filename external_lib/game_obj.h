@@ -401,6 +401,7 @@ struct player_data {
     int    input_interact;      // E click
     int    input_reload_world;  // K click
     int    input_wall_press;    // a or d held — used for edge-grab detection
+    int    input_god_mode_toggle; // G click — one-shot, sent over net
 };
 
 struct decor_data {

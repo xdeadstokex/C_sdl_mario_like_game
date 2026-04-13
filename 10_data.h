@@ -7,6 +7,7 @@
 #include "external_lib/physic.h"
 #include "external_lib/game_obj.h"
 
+
 //###############################################
 // FIXED STRUCTURAL CONSTANTS  (not tunable)
 //###############################################
@@ -25,6 +26,10 @@
 #define STATE_PLAY     1
 #define STATE_WIN      2
 #define STATE_PAUSE    3
+#define STATE_NET_LOBBY 4
+
+// include here since lan_game depend on above macros
+// (moved to bottom — lan_game.h uses globals defined here, no externs needed)
 
 //###############################################
 // SYSTEM DATA
@@ -32,7 +37,9 @@
 struct cpu_window_data window;
 struct mouse_data mouse;
 struct kb_data kb;
-
+font_data font;
+// included here to read all above system data
+#include "external_lib/gui_util.h"
 //###############################################
 // APP CONTROL
 //###############################################
@@ -44,10 +51,6 @@ timer_data tps_timer;
 //###############################################
 struct game_config cfg;
 static enemy_cfg_t ENEMY_CFG[ENEMY_TYPE_COUNT];
-
-
-
-
 
 //-----------------------------------------------
 // GAME CONSTANTS (engine / shared)
@@ -89,7 +92,6 @@ static enemy_cfg_t ENEMY_CFG[ENEMY_TYPE_COUNT];
 
 #define JUMP_BOUNCE_SCALE      0.7
 
-
 //###############################################
 // GAME DATA
 //###############################################
@@ -130,6 +132,13 @@ int decor_count_actual;
 int chest_count_actual;
 int pobj_count_actual;
 
-font_data font;
+
+
+gui_2d_data gui;
+//###############################################
+// LAN  — included last so it sees all globals above (no externs needed)
+//###############################################
+#include "external_lib/lan_game.h"
+lan_ctx_t lan;
 
 #endif
