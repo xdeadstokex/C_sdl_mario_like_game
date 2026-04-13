@@ -45,7 +45,7 @@ gcc main.c -o main.exe ^
   -L%SDL2_PATH%\lib ^
   -L%SDL2_IMAGE_PATH%\lib ^
   -L%SDL2_MIXER_PATH%\lib ^
-  -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_mixer -lm
+  -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_mixer -lm -lws2_32
 
 4. Copy DLLs to executable folder:
    - SDL2.dll
