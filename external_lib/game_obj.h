@@ -325,7 +325,6 @@ struct chest_data {
     double x, y;
     int state;
     int item_type;
-    int show_key;
 };
 
 struct item_data {

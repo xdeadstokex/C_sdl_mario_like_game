@@ -418,6 +418,8 @@ void draw_hud(){
 // CHESTS
 //###############################################
 void draw_chests(){
+double px=player.base.x, py=player.base.y;
+
     for(int i=0;i<chest_count_actual;i++){
         int cx=SX(chests[i].x), cy=SY(chests[i].y);
         int cw=SP(0.6), ch=SP(0.4);
@@ -429,7 +431,12 @@ void draw_chests(){
             draw_rect_centered(&window,cx,cy+ch/4,cw,ch/2,0x8B4513FF);
             draw_rect_centered(&window,cx,cy-ch/4,cw,ch/4,0x6B3A2AFF);
         }
-        if(chests[i].show_key){
+
+		double dx = px - chests[i].x;
+		double dy = py - chests[i].y;
+		int player_near = (dx*dx + dy*dy < 1.5*1.5);
+
+        if(chests[i].state != 1 && player_near){
             draw_rect_centered(&window,cx,cy-SP(0.6),SP(0.3),SP(0.3),0x00000088);
             draw_text_centered(&window,&font,"E",cx,cy-SP(0.6)-5,2,2,2,2,0xFFFFFFFF);
         }
@@ -558,5 +565,31 @@ static inline void lan_draw_lobby(lan_ctx_t* lan){
     }
 
     draw_btn(gui.hint_esc);
+
+    /* CLIENT: poll discovery and draw visible host list */
+    if(lan->role == LAN_CLIENT && !lan->sock_open){
+        lan_disc_poll(lan);
+
+        draw_btn(gui.disc_title);
+
+        if(lan->discovered_count == 0){
+            gui_rect_t empty = gui.disc_entries[0];
+            gui_set_text(&empty, "Scanning...");
+            empty.box_col  = 0x00000000;
+            empty.text_col = 0x445566FF;
+            draw_btn(empty);
+        } else {
+            for(int i = 0; i < lan->discovered_count && i < 8; i++){
+                char label[48];
+                snprintf(label, 48, "%s  :%d",
+                    lan->discovered[i].ip,
+                    (int)lan->discovered[i].port);
+                gui_rect_t* r = &gui.disc_entries[i];
+                gui_set_text(r, label);
+                r->box_col = (lan->selected_host == i) ? 0x1A4A2AFF : 0x0D1A2AFF;
+                draw_btn(*r);
+            }
+        }
+    }
 }
 #endif

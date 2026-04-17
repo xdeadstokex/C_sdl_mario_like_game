@@ -8,16 +8,23 @@
     HOST  : press Enter -> bind socket -> wait for MSG_JOIN
             on join -> show "P2 joined", wait for host Enter
             host presses Enter -> lan_send_start -> both enter STATE_PLAY
+            ALSO: every tick in lobby, broadcast MSG_ANNOUNCE on DISCOVERY_PORT
+                  so clients can see the host without typing IP manually.
 
     CLIENT: press Enter -> bind socket -> send MSG_JOIN every tick
             on MSG_START from host -> set connected=1, game_state=STATE_PLAY
             then send input each tick, receive state snapshots
+            ALSO: before pressing Enter, client listens on DISCOVERY_PORT
+                  and fills a discovered-hosts list shown in the lobby UI.
+                  Clicking/selecting a discovered host fills ui_ip + ui_port.
 
   PORT SCHEME:
     host binds  host_port      (e.g. 7777)
     client binds host_port+1   (e.g. 7778)
     host sends state  -> peer_ip : host_port+1
     client sends join/input -> peer_ip : host_port
+    discovery: host broadcasts -> 255.255.255.255 : DISCOVERY_PORT (7776)
+               client listens on DISCOVERY_PORT (separate socket, always open)
 */
 
 #include <string.h>
@@ -31,15 +38,20 @@
 //###############################################
 #define LAN_DEFAULT_HOST_PORT  7777
 #define LAN_DEFAULT_IP         "127.0.0.1"
+#define LAN_DISCOVERY_PORT     7776   /* broadcast channel, separate from game port */
+#define LAN_ANNOUNCE_INTERVAL  30     /* ticks between announce broadcasts */
+#define LAN_HOST_TIMEOUT       180    /* ticks before a discovered host expires */
+#define LAN_MAX_DISCOVERED     8      /* max hosts shown in client list */
 
 #define LAN_OFF    0
 #define LAN_HOST   1
 #define LAN_CLIENT 2
 
-#define MSG_INPUT  0x01
-#define MSG_STATE  0x02
-#define MSG_JOIN   0x03
-#define MSG_START  0x04
+#define MSG_INPUT    0x01
+#define MSG_STATE    0x02
+#define MSG_JOIN     0x03
+#define MSG_START    0x04
+#define MSG_ANNOUNCE 0x05   /* host -> broadcast: "I am hosting on port X" */
 
 //###############################################
 // WIRE STRUCTS
@@ -81,14 +93,30 @@ typedef struct {
     struct { float x,y,vx,vy; int active; unsigned int color; } pobjs[POBJ_COUNT];
 } net_state_t;
 
+typedef struct {
+    unsigned char  msg;        /* MSG_ANNOUNCE */
+    unsigned short host_port;
+    char           name[16];   /* optional display name */
+} net_announce_t;
+
 #pragma pack(pop)
+
+//###############################################
+// DISCOVERED HOST ENTRY
+//###############################################
+typedef struct {
+    char           ip[32];
+    unsigned short port;
+    char           name[16];
+    int            ttl;   /* countdown in ticks; 0 = expired */
+} lan_host_entry_t;
 
 //###############################################
 // CONTEXT
 //###############################################
 typedef struct {
-    int            role;       // LAN_OFF / LAN_HOST / LAN_CLIENT
-    int            sock_open;  // 1 after net_init, guards net_close
+    int            role;       /* LAN_OFF / LAN_HOST / LAN_CLIENT */
+    int            sock_open;
     network_t      sock;
     char           peer_ip[32];
     int            connected;
@@ -96,27 +124,47 @@ typedef struct {
     unsigned short host_port;
     char           ui_ip[32];
     char           ui_port[8];
-    int            ui_focus;   // 0=port, 1=ip (client only)
+    int            ui_focus;   /* 0=port, 1=ip */
     struct player_data p2;
     net_input_t    last_input;
     char           status_msg[64];
+
+    /* discovery */
+    int              disc_open;
+    network_t        disc_sock;
+    int              announce_timer;
+    lan_host_entry_t discovered[LAN_MAX_DISCOVERED];
+    int              discovered_count;
+    int              selected_host;   /* -1 = none */
 } lan_ctx_t;
 
 //###############################################
 // INIT / STOP
 //###############################################
 static inline void lan_init_ctx(lan_ctx_t* lan){
+    /* preserve discovery state so client keeps seeing hosts across re-inits */
+    int disc_open = lan->disc_open;
+    network_t disc_sock = lan->disc_sock;
+    int disc_count = lan->discovered_count;
+    lan_host_entry_t disc_copy[LAN_MAX_DISCOVERED];
+    memcpy(disc_copy, lan->discovered, sizeof(disc_copy));
+
     memset(lan, 0, sizeof(lan_ctx_t));
     lan->host_port = LAN_DEFAULT_HOST_PORT;
     strcpy(lan->peer_ip, LAN_DEFAULT_IP);
     strcpy(lan->ui_ip,   LAN_DEFAULT_IP);
     snprintf(lan->ui_port, 8, "%d", LAN_DEFAULT_HOST_PORT);
     strcpy(lan->status_msg, "Offline");
+    lan->selected_host = -1;
+
+    lan->disc_open = disc_open;
+    lan->disc_sock = disc_sock;
+    lan->discovered_count = disc_count;
+    memcpy(lan->discovered, disc_copy, sizeof(disc_copy));
 }
 
 static inline void lan_stop(lan_ctx_t* lan){
     if(lan->sock_open){ net_close(&lan->sock); lan->sock_open = 0; }
-    /* preserve typed UI fields so user doesn't retype after cancel */
     char saved_ip[32], saved_port[8];
     strcpy(saved_ip,   lan->ui_ip);
     strcpy(saved_port, lan->ui_port);
@@ -125,18 +173,34 @@ static inline void lan_stop(lan_ctx_t* lan){
     strcpy(lan->ui_port, saved_port);
 }
 
+/* Open client discovery listen socket. Call once on entering JOIN lobby. */
+static inline void lan_disc_open(lan_ctx_t* lan){
+    if(lan->disc_open) return;
+    net_init(&lan->disc_sock, LAN_DISCOVERY_PORT, 0 /* non-blocking */);
+    lan->disc_open = 1;
+}
+
+static inline void lan_disc_close(lan_ctx_t* lan){
+    if(!lan->disc_open) return;
+    net_close(&lan->disc_sock);
+    lan->disc_open = 0;
+    lan->discovered_count = 0;
+    lan->selected_host = -1;
+}
+
 static inline void lan_start_host(lan_ctx_t* lan){
-    if(lan->sock_open) return; /* already bound */
+    if(lan->sock_open) return;
     int p = atoi(lan->ui_port);
     lan->host_port = (p > 0 && p < 65536) ? (unsigned short)p : LAN_DEFAULT_HOST_PORT;
     net_init(&lan->sock, lan->host_port, 0);
     lan->sock_open = 1;
+    lan->announce_timer = 0;
     snprintf(lan->status_msg, 64, "Hosting :%d — waiting for client...", lan->host_port);
     printf("[LAN] Host on port %d\n", lan->host_port);
 }
 
 static inline void lan_start_client(lan_ctx_t* lan){
-    if(lan->sock_open) return; /* already bound */
+    if(lan->sock_open) return;
     int p = atoi(lan->ui_port);
     lan->host_port = (p > 0 && p < 65536) ? (unsigned short)p : LAN_DEFAULT_HOST_PORT;
     strncpy(lan->peer_ip, lan->ui_ip[0] ? lan->ui_ip : LAN_DEFAULT_IP, 31);
@@ -148,6 +212,82 @@ static inline void lan_start_client(lan_ctx_t* lan){
 }
 
 //###############################################
+// DISCOVERY
+//###############################################
+
+/* Host: broadcast presence every ANNOUNCE_INTERVAL ticks */
+static inline void lan_broadcast_announce(lan_ctx_t* lan){
+    if(!lan->sock_open) return;
+    if(--lan->announce_timer > 0) return;
+    lan->announce_timer = LAN_ANNOUNCE_INTERVAL;
+
+    net_announce_t pkt;
+    pkt.msg = MSG_ANNOUNCE;
+    pkt.host_port = lan->host_port;
+    strncpy(pkt.name, "HOST", 15); pkt.name[15] = '\0';
+
+    char ip[32];
+
+    for(int a = 0; a < 256; a++){
+        for(int b = 1; b < 255; b++){
+            snprintf(ip, sizeof(ip), "192.168.%d.%d", a, b);
+            net_send(&lan->sock, ip, LAN_DISCOVERY_PORT, &pkt, sizeof(pkt));
+        }
+    }
+}
+
+/* Client: drain discovery socket, update discovered list */
+static inline void lan_disc_poll(lan_ctx_t* lan){
+    if(!lan->disc_open) return;
+
+    /* age entries */
+    for(int i = 0; i < lan->discovered_count; ){
+        lan->discovered[i].ttl--;
+        if(lan->discovered[i].ttl <= 0){
+            int last = --lan->discovered_count;
+            if(lan->selected_host == i)    lan->selected_host = -1;
+            else if(lan->selected_host == last) lan->selected_host = i;
+            lan->discovered[i] = lan->discovered[last];
+        } else {
+            i++;
+        }
+    }
+
+    static unsigned char buf[64];
+    char from_ip[32]; int n;
+    while((n = net_recv(&lan->disc_sock, buf, sizeof(buf), from_ip)) > 0){
+        if(n < (int)sizeof(net_announce_t)) continue;
+        net_announce_t* pkt = (net_announce_t*)buf;
+        if(pkt->msg != MSG_ANNOUNCE) continue;
+
+        int found = 0;
+        for(int i = 0; i < lan->discovered_count; i++){
+            if(strcmp(lan->discovered[i].ip, from_ip)==0 &&
+               lan->discovered[i].port == pkt->host_port){
+                lan->discovered[i].ttl = LAN_HOST_TIMEOUT;
+                found = 1; break;
+            }
+        }
+        if(!found && lan->discovered_count < LAN_MAX_DISCOVERED){
+            lan_host_entry_t* e = &lan->discovered[lan->discovered_count++];
+            strncpy(e->ip, from_ip, 31); e->ip[31] = '\0';
+            e->port = pkt->host_port;
+            strncpy(e->name, pkt->name, 15); e->name[15] = '\0';
+            e->ttl = LAN_HOST_TIMEOUT;
+        }
+    }
+}
+
+/* Client clicks/selects a discovered host — fills ui_ip/ui_port */
+static inline void lan_select_discovered(lan_ctx_t* lan, int idx){
+    if(idx < 0 || idx >= lan->discovered_count) return;
+    lan->selected_host = idx;
+    strncpy(lan->ui_ip,   lan->discovered[idx].ip, 31);
+    lan->ui_ip[31] = '\0';
+    snprintf(lan->ui_port, 8, "%d", lan->discovered[idx].port);
+}
+
+//###############################################
 // SEND HELPERS
 //###############################################
 static inline void lan_send_join(lan_ctx_t* lan){
@@ -155,7 +295,6 @@ static inline void lan_send_join(lan_ctx_t* lan){
     net_send(&lan->sock, lan->peer_ip, lan->host_port, b, 2);
 }
 
-/* host -> client: "game is starting" */
 static inline void lan_send_start(lan_ctx_t* lan){
     unsigned char b[2] = {MSG_START, 0};
     net_send(&lan->sock, lan->peer_ip, lan->host_port + 1, b, 2);
@@ -235,8 +374,8 @@ static inline void lan_pack_state(lan_ctx_t* lan, net_state_t* st){
         st->terrains[i].hp           = terrains[i].hp;
     }
     st->chest_count = chest_count_actual;
-    for(int i = 0; i < chest_count_actual; i++)
-        st->chests[i].state = chests[i].state;
+    for(int i = 0; i < chest_count_actual; i++){ st->chests[i].state = chests[i].state; }
+
     st->item_count = item_count_actual;
     for(int i = 0; i < item_count_actual; i++){
         st->items[i].x      = items[i].x;
@@ -258,7 +397,6 @@ static inline void lan_pack_state(lan_ctx_t* lan, net_state_t* st){
 //###############################################
 static inline void lan_unpack_state(lan_ctx_t* lan, net_state_t* st){
     game_state = st->game_state;
-    /* Client IS p2. p2 = self (drives camera), p1 = host (rendered as other player) */
     lan_unpack_player(&st->p2, &player);
     lan_unpack_player(&st->p1, &lan->p2);
 
@@ -290,8 +428,8 @@ static inline void lan_unpack_state(lan_ctx_t* lan, net_state_t* st){
         terrains[i].warning_timer = st->terrains[i].warning_timer;
         terrains[i].hp            = st->terrains[i].hp;
     }
-    for(int i = 0; i < st->chest_count && i < CHEST_COUNT; i++)
-        chests[i].state = st->chests[i].state;
+    for(int i = 0; i < st->chest_count && i < CHEST_COUNT; i++){ chests[i].state = st->chests[i].state; }
+
     item_count_actual = st->item_count;
     for(int i = 0; i < item_count_actual; i++){
         items[i].x      = st->items[i].x;
@@ -325,8 +463,7 @@ static inline void lan_pack_input(net_input_t* inp){
     inp->reload_world = player.input_reload_world;
     inp->wall_press   = player.input_wall_press;
     inp->god_mode_toggle = player.input_god_mode_toggle;
-    inp->last_move_dir= player.last_move_dir;
-    /* clear one-shot inputs so they don't repeat next tick */
+    //inp->last_move_dir= player.last_move_dir; // dont resend this to host
     player.input_jump_click = player.input_dash    = player.input_shoot =
     player.input_interact   = player.input_reload_world =
     player.input_god_mode_toggle = 0;
@@ -350,14 +487,12 @@ static inline void lan_apply_input_to_p2(lan_ctx_t* lan){
 
 //###############################################
 // HOST TICK
-// Call each game tick while in STATE_NET_LOBBY or STATE_PLAY.
-// - In lobby: drain socket, accept one join, show status.
-//   Does NOT auto-start — host presses Enter (handled in 30_control.h).
-// - In play: drain input, broadcast state.
 //###############################################
 static inline void lan_host_tick(lan_ctx_t* lan){
     static unsigned char buf[sizeof(net_state_t) + 4];
     char from_ip[32]; int n;
+
+    if(game_state == STATE_NET_LOBBY){ lan_broadcast_announce(lan); }
 
     while((n = net_recv(&lan->sock, buf, sizeof(buf), from_ip)) > 0){
         if(buf[0] == MSG_JOIN && !lan->connected){
@@ -366,7 +501,6 @@ static inline void lan_host_tick(lan_ctx_t* lan){
             lan->connected = 1;
             snprintf(lan->status_msg, 64, "P2 joined: %s — press ENTER to start", from_ip);
             printf("[LAN] Client joined from %s\n", from_ip);
-            /* Do NOT call lan_send_start here — host must press Enter first */
         }
         if(buf[0] == MSG_INPUT && lan->connected && n >= (int)sizeof(net_input_t)){
             memcpy(&lan->last_input, buf, sizeof(net_input_t));
@@ -384,27 +518,17 @@ static inline void lan_host_tick(lan_ctx_t* lan){
 
 //###############################################
 // CLIENT TICK
-// Call each game tick while in STATE_NET_LOBBY or STATE_PLAY.
-// - In lobby: keep sending MSG_JOIN until MSG_START received.
-//   On MSG_START: set connected, transition to STATE_PLAY.
-// - In play: send input, apply received state snapshots.
-//
-// BUG FIX: socket MUST be open (lan_start_client called) before
-// this function is called. Guard is in 30_control.h — Enter opens
-// the socket, then this starts running.
 //###############################################
 static inline void lan_client_tick(lan_ctx_t* lan){
     static unsigned char buf[sizeof(net_state_t) + 4];
     static net_state_t   st_buf;
     char from_ip[32]; int n;
 
-    if(!lan->sock_open) return; /* socket not open yet, nothing to do */
+    if(!lan->sock_open) return;
 
-    /* keep pinging host until connected */
     if(!lan->connected){
         lan_send_join(lan);
     } else {
-        /* send input every tick once in game */
         static net_input_t inp;
         lan_pack_input(&inp);
         lan_send_input(lan, &inp);
@@ -418,7 +542,7 @@ static inline void lan_client_tick(lan_ctx_t* lan){
             lan->peer_ip[31] = '\0';
             snprintf(lan->status_msg, 64, "Connected to %s — starting!", lan->peer_ip);
             printf("[LAN] MSG_START received, entering game\n");
-            game_state = STATE_PLAY; /* client transitions here */
+            game_state = STATE_PLAY;
         }
         if(buf[0] == MSG_STATE && lan->connected && n >= (int)sizeof(net_state_t)){
             memcpy(&st_buf, buf, sizeof(net_state_t));

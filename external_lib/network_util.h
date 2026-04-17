@@ -117,8 +117,4 @@ static inline int net_recv(network_t* net, void* buf, int len, char* from_ip) {
 
 #endif
 
-static inline int net_broadcast(network_t* net, unsigned short port, void* buf, int len) {
-    return net_send(net, "255.255.255.255", port, buf, len);
-}
-
 #endif // NET_H

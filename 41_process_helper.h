@@ -131,20 +131,29 @@ static inline void apply_dash(int ml,int mr){
     player.dash_ready=0;
 }
 
+
 static inline void apply_shoot(){
-    if(!player.input_shoot||player.fireball_ammo<=0) return;
-    player.input_shoot=0;
-    play_sound(&sfx.fireball);
-    player.fireball_ammo--;
-    for(int i=0;i<PROJ_COUNT;i++){
-        if(projectiles[i].active) continue;
-        projectiles[i]=(struct projectile_data){
-            .active=1, .x=player.base.x, .y=player.base.y,
-            .vx=player.last_move_dir*12.0, .vy=0,
-            .dir=player.last_move_dir, .type=0
-        };
-        break;
-    }
+if(player.fireball_ammo <= 0){ player.input_shoot = 0; }
+if(player.input_shoot == 0) return;
+
+player.input_shoot=0;
+play_sound(&sfx.fireball);
+player.fireball_ammo--;
+
+for(int i = 0; i < PROJ_COUNT; i += 1){
+struct projectile_data *p = &projectiles[i];
+if(p->active) continue;
+
+p->active = 1;
+p->x = player.base.x; p->y = player.base.y;
+p->vx = player.last_move_dir * 12.0f; p->vy = 0.0f;
+p->dir = player.last_move_dir;
+p->type = 0;
+
+break;
+}
+
+return;
 }
 
 //###############################################
@@ -726,31 +735,46 @@ void process_items(){
 // CHESTS
 //###############################################
 void process_chests(){
-    double px=player.base.x, py=player.base.y;
-    double p2x=lan.p2.base.x, p2y=lan.p2.base.y;
-    int p2_active=(lan.role==LAN_HOST&&lan.connected);
-    for(int i=0;i<chest_count_actual;i++){
-        if(chests[i].state==1){ chests[i].show_key=0; continue; }
-        double dx=px-chests[i].x, dy=py-chests[i].y;
-        int p1_near=(dx*dx+dy*dy<1.5*1.5);
-        int p2_near=0;
-        if(p2_active){ double dx2=p2x-chests[i].x,dy2=p2y-chests[i].y; p2_near=(dx2*dx2+dy2*dy2<1.5*1.5); }
-        chests[i].show_key=(p1_near||p2_near);
-        int interact=(p1_near&&player.input_interact)||(p2_near&&lan.p2.input_interact);
-        if(!chests[i].show_key||!interact) continue;
-        player.input_interact=0; lan.p2.input_interact=0;
-        play_sound(&sfx.chest);
-        chests[i].state=1; chests[i].show_key=0;
-        int j=0;
-        for(;j<item_count_actual;j++) if(!items[j].active) break;
-        if(j==item_count_actual&&item_count_actual<ITEM_COUNT) item_count_actual++;
-        if(j<ITEM_COUNT){
-            items[j]=(struct item_data){
-                .active=1, .x=chests[i].x-0.3, .y=chests[i].y,
-                .type=chests[i].item_type, .respawn_timer=-1
-            };
-        }
-    }
+double px=player.base.x, py=player.base.y;
+double p2x= lan.p2.base.x, p2y= lan.p2.base.y;
+int p2_active = (lan.connected);
+
+for(int i=0;i<chest_count_actual;i++){
+if(chests[i].state == 1){ continue; }
+
+double dx = px - chests[i].x;
+double dy = py - chests[i].y;
+int p1_near = (dx*dx + dy*dy < 1.5*1.5);
+int p2_near = 0;
+
+if(p2_active){
+double dx2 = p2x - chests[i].x;
+double dy2 = p2y - chests[i].y;
+p2_near = (dx2*dx2 + dy2*dy2 < 1.5*1.5);
+}
+
+int interact=(p1_near && player.input_interact) || (p2_near && lan.p2.input_interact);
+
+if(!interact) continue;
+player.input_interact = 0; lan.p2.input_interact = 0;
+play_sound(&sfx.chest);
+chests[i].state=1;
+int j = 0;
+
+for(;j<item_count_actual;j++) if(!items[j].active) break;
+
+if(j==item_count_actual&&item_count_actual<ITEM_COUNT) item_count_actual++;
+
+if(j<ITEM_COUNT){
+items[j]=(struct item_data){
+.active=1, .x=chests[i].x-0.3, .y=chests[i].y,
+.type=chests[i].item_type, .respawn_timer=-1
+};
+}
+
+}
+
+return;
 }
 
 //###############################################

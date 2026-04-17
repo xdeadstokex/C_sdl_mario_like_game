@@ -230,7 +230,6 @@ static void load_tag_B(wl_ctx* ctx, const char* line){
     ctx->chests[i].y = ctx->cfg->world_h - y - 0.2; // Y-flip, h/2
     ctx->chests[i].state = 0;
     ctx->chests[i].item_type = type;
-    ctx->chests[i].show_key = 0;
     (*ctx->chest_count)++;
 }
 

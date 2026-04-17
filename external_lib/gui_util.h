@@ -57,6 +57,11 @@ typedef struct {
     gui_rect_t menu_about_title;
     gui_rect_t menu_about_lines[7];
 	
+	// lan — discovered hosts list (client only)
+    gui_rect_t disc_title;
+    gui_rect_t disc_entries[8];   /* one per LAN_MAX_DISCOVERED */
+    int        disc_entry_count;
+
 	// lan
     gui_rect_t title;
 
@@ -157,9 +162,20 @@ void init_lobby_rects(gui_2d_data* gui, int sw, int sh){
     gui->ip_label = make_rect(fx, sh*51/100, fw, fh, 0x00000000, 0x7090B0FF, 1,1,1, "HOST IP:");
     gui->ip_box = make_rect(fx, sh*54/100, fw, fh, 0x0D1A2AFF, 0xFFFFFFFF, 2,2,0, "");
     gui->hint_tab = make_rect(fx, sh*66/100, fw, fh, 0x00000000, 0x445566FF, 1,1,0, "TAB  SWITCH FIELD");
-    gui->hint_enter = make_rect(fx, sh*74/100, fw, fh, 0x00000000, 0x44FF88FF, 1,1,0, "");
+    gui->hint_enter = make_rect(fx, sh*78/100, fw, fh, 0x00000000, 0x44FF88FF, 1,1,0, "");
     gui->hint_status = make_rect(fx, sh*74/100, fw, fh, 0x00000000, 0xFFAA44FF, 1,1,0, "");
     gui->hint_esc = make_rect(fx, sh*90/100, fw, fh, 0x00000000, 0x445566FF, 1,1,0, "ESC  CANCEL");
+
+    /* discovered hosts list — shown on right side for CLIENT */
+    int dx = cx + fw/2 + sw*3/100;   /* right of the manual fields */
+    int dw = fw;
+    int dh = fh;
+    gui->disc_title = make_rect(dx, sh*35/100, dw, dh, 0x00000000, 0x7090B0FF, 1,1,0, "VISIBLE HOSTS");
+    for(int i = 0; i < 8; i++){
+        gui->disc_entries[i] = make_rect(dx, sh*38/100 + i*(dh+4), dw, dh,
+            0x0D1A2AFF, 0xFFFFFFFF, 1,1,0, "");
+    }
+    gui->disc_entry_count = 0;
 }
 
 void init_menu_rects(gui_2d_data* gui, int sw, int sh){

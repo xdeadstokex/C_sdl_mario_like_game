@@ -130,7 +130,18 @@ int control(){
             // client: game_state flips via snapshot from host
         }
 
-        if(kb.key_escape.click){ lan_stop(&lan); game_state = STATE_MENU; }
+        /* click on a discovered host entry to select it */
+        if(mouse.left.click && lan.role == LAN_CLIENT && !lan.sock_open){
+            int mx2=mouse.x, my2=mouse.y;
+            for(int _i=0; _i<lan.discovered_count && _i<8; _i++){
+                if(gui_hit(gui.disc_entries[_i], mx2, my2)){
+                    lan_select_discovered(&lan, _i);
+                    break;
+                }
+            }
+        }
+
+        if(kb.key_escape.click){ lan_stop(&lan); lan_disc_close(&lan); game_state = STATE_MENU; }
         return 1;
     }
 
@@ -162,6 +173,7 @@ int control(){
                 if(gui_hit(gui.menu_join,    mx,my)){
                     lan_init_ctx(&lan);
                     lan.role = LAN_CLIENT;
+                    lan_disc_open(&lan);   /* start listening for host broadcasts */
                     game_state = STATE_NET_LOBBY;
                 }
                 if(gui_hit(gui.menu_exit,    mx,my)){ return 0; }
