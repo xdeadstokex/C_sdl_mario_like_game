@@ -194,11 +194,14 @@ static inline unsigned int enemy_color(struct enemy_data* e,const enemy_cfg_t* c
     return c->col_base;
 }
 
-static void draw_weather_fx(struct enemy_data* e,int i){
-    double t = tps_timer.time;
-    double ox = t * 2.5;
-    double oy = t * 3.0;
-    double bx = e->base.x, by = e->base.y;
+static void draw_weather_fx(struct enemy_data* e, int i){
+    double t   = tps_timer.time;
+    double dir = (e->dash_vx >= 0) ? 1.0 : -1.0;
+    double spd = fabs(e->dash_vx) * ENEMY_CFG[e->type].weather_push_scale; // stronger = faster scroll
+    double ox  = t * spd * dir;
+    double oy  = t * 1.5;
+    double bx  = e->base.x, by = e->base.y;
+
     for(int k=0;k<120;k++){
         double nx=fmod(fabs(sin(k*99.123)*12345.67),36.0);
         double ny=fmod(fabs(cos(k*88.321)*76543.21),36.0);
@@ -206,8 +209,9 @@ static void draw_weather_fx(struct enemy_data* e,int i){
         double my=fmod(ny+oy,36.0); if(my<0) my+=36.0; my-=18.0;
         if(mx*mx+my*my<324.0){
             unsigned int col=(k%3==0)?0x228B22FF:(k%3==1)?0x32CD32FF:0x8B4513FF;
-            if(k&1) draw_rect(&window,SX(bx+mx),SY(by+my),6,10,col);
-            else    draw_rect(&window,SX(bx+mx),SY(by+my),10,6,col);
+            // wide+short = horizontal wind, tall+narrow = calm/vertical
+            if(k&1) draw_rect(&window,SX(bx+mx),SY(by+my), (int)(10*fabs(dir)), 5, col);
+            else    draw_rect(&window,SX(bx+mx),SY(by+my), (int)(12*fabs(dir)), 4, col);
         }
     }
 }
@@ -506,7 +510,7 @@ void draw_win_screen(){
 
     draw_btn(gui.win_title);
     draw_btn(gui.win_score);
-    draw_btn(gui.win_play_again);
+	if(lan.connected && lan.role == LAN_HOST || !lan.connected){ draw_btn(gui.win_play_again); }
     draw_btn(gui.win_main_menu);
     draw_btn(gui.win_hint);
 }

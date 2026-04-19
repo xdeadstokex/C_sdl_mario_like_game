@@ -23,7 +23,9 @@ void reset_player(){
     player.last_move_dir=1; player.jump_boost_timer=0;
     player.speed_boost_timer = 0;
     player.slow_timer = 0;
-    player.hp = 5;
+	player.dash_cooldown_timer = 0;
+	player.dash_cooldown_tick = cfg.tps * 2; // 2 sec cooldown total tick
+    player.hp = PLAYER_MAX_HP;
     player.fireball_ammo = 0;
     update_player_sensors();
     clear_sensor_flags();
@@ -60,7 +62,7 @@ void reset_game(){
         if(terrains[i].type==TERRAIN_BREAK){
             terrains[i].broken=0;
             terrains[i].broken_timer=0;
-            terrains[i].hp=1;
+            terrains[i].hp = BREAK_TERRAIN_MAX_HP;
         }
         terrains[i].warning_timer = 0;
     }
@@ -100,7 +102,7 @@ void reload_world(){
         if(terrains[i].type==TERRAIN_BREAK){
             terrains[i].broken=0;
             terrains[i].broken_timer=0;
-            terrains[i].hp=1;
+            terrains[i].hp = BREAK_TERRAIN_MAX_HP;
         }
         terrains[i].warning_timer = 0;
     }

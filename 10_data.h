@@ -91,7 +91,8 @@ static enemy_cfg_t ENEMY_CFG[ENEMY_TYPE_COUNT];
 #define WORLD_EDGE_PAD         2.0
 
 #define JUMP_BOUNCE_SCALE      0.7
-
+#define PLAYER_MAX_HP          5
+#define BREAK_TERRAIN_MAX_HP   5
 //###############################################
 // GAME DATA
 //###############################################

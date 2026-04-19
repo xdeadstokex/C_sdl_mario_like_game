@@ -125,8 +125,8 @@ static void load_tag_T(wl_ctx* ctx, const char* line){
     int n=sscanf(line+1,"%lf %lf %lf %lf %31s %d",&x,&y,&w,&h,ts,&ci);
     wl_check_fields(ctx,n,6,"T",line);
     int ttype,thp;
-    if     (!strcmp(ts,"solid")){ ttype=TERRAIN_SOLID; thp=-1; }
-    else if(!strcmp(ts,"break")){ ttype=TERRAIN_BREAK; thp= 1; }
+    if      (!strcmp(ts,"solid")){  ttype=TERRAIN_SOLID; thp =-1; }
+    else if(!strcmp(ts,"break")){  ttype=TERRAIN_BREAK; thp = BREAK_TERRAIN_MAX_HP; }
     else wl_error(ctx,"T type must be solid|break",line);
     int i=*ctx->terrain_count;
     // file: y=0 ground, y increases upward

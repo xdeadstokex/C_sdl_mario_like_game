@@ -52,7 +52,7 @@
 #define MSG_JOIN     0x03
 #define MSG_START    0x04
 #define MSG_ANNOUNCE 0x05   /* host -> broadcast: "I am hosting on port X" */
-
+#define MSG_ACK      0x06
 //###############################################
 // WIRE STRUCTS
 //###############################################
@@ -120,6 +120,7 @@ typedef struct {
     network_t      sock;
     char           peer_ip[32];
     int            connected;
+	int            client_confirmed;  // 1 = received at least one MSG_INPUT
     int            tick;
     unsigned short host_port;
     char           ui_ip[32];
@@ -171,6 +172,8 @@ static inline void lan_stop(lan_ctx_t* lan){
     lan_init_ctx(lan);
     strcpy(lan->ui_ip,   saved_ip);
     strcpy(lan->ui_port, saved_port);
+	lan->connected = 0;
+	lan->client_confirmed = 0;
 }
 
 /* Open client discovery listen socket. Call once on entering JOIN lobby. */
@@ -297,7 +300,9 @@ static inline void lan_send_join(lan_ctx_t* lan){
 
 static inline void lan_send_start(lan_ctx_t* lan){
     unsigned char b[2] = {MSG_START, 0};
-    net_send(&lan->sock, lan->peer_ip, lan->host_port + 1, b, 2);
+    for(int i = 0; i < 10; i++){
+        net_send(&lan->sock, lan->peer_ip, lan->host_port + 1, b, 2);
+	}
 }
 
 static inline void lan_send_input(lan_ctx_t* lan, net_input_t* i){
@@ -397,6 +402,7 @@ static inline void lan_pack_state(lan_ctx_t* lan, net_state_t* st){
 //###############################################
 static inline void lan_unpack_state(lan_ctx_t* lan, net_state_t* st){
     game_state = st->game_state;
+	if(game_state == STATE_WIN){ printf("aasdada\n"); }
     lan_unpack_player(&st->p2, &player);
     lan_unpack_player(&st->p1, &lan->p2);
 
@@ -503,17 +509,26 @@ static inline void lan_host_tick(lan_ctx_t* lan){
             printf("[LAN] Client joined from %s\n", from_ip);
         }
         if(buf[0] == MSG_INPUT && lan->connected && n >= (int)sizeof(net_input_t)){
+			lan->client_confirmed = 1;
             memcpy(&lan->last_input, buf, sizeof(net_input_t));
             lan_apply_input_to_p2(lan);
         }
     }
 
-    if(lan->connected && game_state == STATE_PLAY){
+    if(lan->connected && game_state == STATE_PLAY || game_state == STATE_WIN){
+		if(!lan->client_confirmed){
+			lan_send_start(lan);  // keeps hammering until client responds
+		}
         static net_state_t st;
         lan_pack_state(lan, &st);
         lan_send_state(lan, &st);
         lan->tick++;
+		return;
     }
+
+	if(buf[0] == MSG_ACK && lan->connected){
+		lan->client_confirmed = 1;
+	}
 }
 
 //###############################################
@@ -538,6 +553,13 @@ static inline void lan_client_tick(lan_ctx_t* lan){
     while((n = net_recv(&lan->sock, buf, sizeof(buf), from_ip)) > 0){
         if(buf[0] == MSG_START && !lan->connected){
             lan->connected = 1;
+			// send ack confirm
+			
+			unsigned char ack[2] = {MSG_ACK, 0};
+			for(int a = 0; a < 10; a += 1){
+			net_send(&lan->sock, lan->peer_ip, lan->host_port, ack, 2);
+			}
+			
             strncpy(lan->peer_ip, from_ip, 31);
             lan->peer_ip[31] = '\0';
             snprintf(lan->status_msg, 64, "Connected to %s — starting!", lan->peer_ip);

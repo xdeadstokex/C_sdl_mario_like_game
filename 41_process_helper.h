@@ -91,7 +91,7 @@ static inline void player_apply_velocity_caps(){
 // MOVEMENT SUB-SYSTEMS
 //###############################################
 static inline void apply_edge_grab(double dt,int ml,int mr){
-    int release=(player.grab_wall_dir==-1&&mr)||(player.grab_wall_dir==1&&ml);
+    int release=(player.grab_wall_dir == -1 && mr) || (player.grab_wall_dir == 1 && ml);
     if(release||player.on_ground){
         player.edge_grab=0; player.grab_wall_dir=0; player.base.ay=cfg.gravity;
     } else {
@@ -123,12 +123,15 @@ static inline void apply_jump(){
 }
 
 static inline void apply_dash(int ml,int mr){
-    if(!(player.input_dash&&player.dash_ready&&!player.dashing&&!player.edge_grab)) return;
-    player.input_dash=0;
+    if(player.edge_grab){ player.input_dash = 0; return; }
+	if(player.dash_cooldown_timer > 0){ player.dash_cooldown_timer -= 1; player.input_dash = 0; return; }
+    if(!(player.input_dash && player.dash_ready && !player.dashing && !player.edge_grab)) return;
+    player.input_dash = 0;
     play_sound(&sfx.dash);
     player.dashing=cfg.dash_frames;
-    player.dash_dir=player.last_move_dir;
+    player.dash_dir = player.last_move_dir;
     player.dash_ready=0;
+	player.dash_cooldown_timer = player.dash_cooldown_tick;
 }
 
 
@@ -156,6 +159,27 @@ break;
 return;
 }
 
+static inline void apply_god_mode(double dt, int ml,int mr){
+player.base.vx *= 0.9;
+player.base.vy *= 0.9;
+
+// snap to zero if small
+if(player.base.vx > -0.01 && player.base.vx < 0.01){ player.base.vx = 0; }
+if(player.base.vy > -0.01 && player.base.vy < 0.01){ player.base.vy = 0; }
+
+player.base.ay = 0;
+double fly=6.0;
+if(ml)                     player.base.x-=fly*dt;
+if(mr)                     player.base.x+=fly*dt;
+if(player.input_move_up)   player.base.y-=fly*dt;
+if(player.input_move_down) player.base.y+=fly*dt;
+if(player.input_jump_hold) player.base.y-=fly*dt;
+player.base.x = dclamp(player.base.x,0,cfg.world_w);
+player.base.y = dclamp(player.base.y,0,cfg.world_h);
+player.hp = PLAYER_MAX_HP;
+player.dash_ready = 1;
+return;
+}
 //###############################################
 // PLAYER MOVEMENT
 //###############################################
@@ -174,37 +198,26 @@ void process_player_movement(double dt){
         reload_world(); player.input_reload_world=0;
     }
 
-    if(player.god_mode){
-        player.base.vx=player.base.vy=player.base.ay=0;
-        double fly=6.0;
-        if(ml)                     player.base.x-=fly*dt;
-        if(mr)                     player.base.x+=fly*dt;
-        if(player.input_move_up)   player.base.y-=fly*dt;
-        if(player.input_move_down) player.base.y+=fly*dt;
-        if(player.input_jump_hold) player.base.y-=fly*dt;
-        player.base.x=dclamp(player.base.x,0,cfg.world_w);
-        player.base.y=dclamp(player.base.y,0,cfg.world_h);
-        return;
-    }
-
-    if(player.edge_grab) apply_edge_grab(dt,ml,mr);
-    else                 player.base.ay=cfg.gravity;
-
-    if(player.dashing>0){
-        player.dashing--;
-        player.base.vx=player.dash_dir*cfg.dash_speed;
-        player.base.vy=player.base.ay=0;
-    } else if(!player.edge_grab){
-        apply_horizontal_move(dt,ml,mr,cur_speed);
-    }
-
-    apply_jump();
     apply_shoot();
 
+
+    if(player.edge_grab){ apply_edge_grab(dt,ml,mr); }
+    else{ player.base.ay=cfg.gravity; }
+
+    if(player.dashing > 0){
+        player.dashing--;
+        player.base.vx = player.dash_dir * cfg.dash_speed;
+        player.base.vy = player.base.ay = 0;
+    }
+	else if(!player.edge_grab){ apply_horizontal_move(dt,ml,mr,cur_speed); }
+
+    apply_jump();
+
     clear_sensor_flags();
+	if(player.god_mode){ apply_god_mode(dt, ml, mr); }
     apply_dash(ml,mr);
-    update_base(&player.base,dt);
-    update_player_sensors();
+    update_base(&player.base, dt);
+    if( !player.god_mode ){ update_player_sensors(); }
     player_apply_velocity_caps();
 
     if(player.invincible>0)       player.invincible--;
@@ -217,7 +230,7 @@ void process_player_movement(double dt){
 static inline void handle_terrain_break(int i,double ty,double th){
     double oy=(player.base.col_h+th)*0.5-fabs(player.base.y-ty);
     player.base.y-=oy;
-    if(--terrains[i].hp<=0){
+    if(--terrains[i].hp <= 0){
         terrains[i].broken=1;
         terrains[i].broken_timer=TPS_SCALE(300);
         player.base.vy=-2.5;
@@ -232,7 +245,7 @@ static inline void handle_wall_contact(int hl,int hr,double ty,double th){
     int pressing=(ws==1&&player.input_move_right)||(ws==-1&&player.input_move_left);
     double terrain_top=ty-th*0.5;
     int beside=(player.base.y+player.base.col_oy)>=terrain_top;
-    if(!player.on_ground&&pressing&&!player.edge_grab&&beside){
+    if(!player.on_ground && pressing && !player.edge_grab && beside){
         player.edge_grab=1;
         player.grab_wall_dir=ws;
         player.base.vy=dclamp(player.base.vy,-2.0,2.0);
@@ -256,7 +269,7 @@ void process_terrain_collision(){
         sense_one(tx,ty,tw,th,&hd,&hu,&hl,&hr);
         if(!hd&&!hu&&!hl&&!hr) continue;
 
-        if(hd&&terrains[i].type==TERRAIN_BREAK&&terrains[i].hp>0){
+        if(hd && terrains[i].type == TERRAIN_BREAK && terrains[i].hp > 0){
             handle_terrain_break(i,ty,th); continue;
         }
 
@@ -286,7 +299,7 @@ void process_terrain_timers(){
             }
         }
         if(!terrains[i].broken) continue;
-        if(--terrains[i].broken_timer<=0){ terrains[i].broken=0; terrains[i].hp=1; }
+        if(--terrains[i].broken_timer<=0){ terrains[i].broken = 0; terrains[i].hp = BREAK_TERRAIN_MAX_HP; }
     }
 }
 
@@ -454,7 +467,19 @@ static inline void player_hit_enemy(struct enemy_data* e,double px){
     if(player.invincible) return;
     const enemy_cfg_t* c=&ENEMY_CFG[e->type];
     player.invincible=cfg.invincible_frames;
-    if(--player.hp<=0){ play_sound(&sfx.die); reset_game(); return; }
+    if(--player.hp<=0){
+		int lan_play = (lan.role == LAN_HOST && lan.connected);
+		if(lan_play == 0){ play_sound(&sfx.die);reset_game(); return; }
+		if(lan_play == 1){
+			play_sound(&sfx.die); /* player dies: respawn */
+			player.base.x = player.respawn_x + 1.0;
+			player.base.y = player.respawn_y;
+			player.base.vx = 0;
+			player.base.vy = 0;
+			player.hp = PLAYER_MAX_HP;
+			return;
+		}
+	}
     play_sound(&sfx.hitted);
     double push=dsign(px-e->base.x); if(push==0) push=1;
     player.base.vx=push*c->push_force;
@@ -468,7 +493,7 @@ static inline void p2_hit_enemy(struct enemy_data* e, double p2x){
     lan.p2.invincible=cfg.invincible_frames;
     if(--lan.p2.hp<=0){ play_sound(&sfx.die); /* p2 dies: respawn */ 
         lan.p2.base.x=player.respawn_x+1.0; lan.p2.base.y=player.respawn_y;
-        lan.p2.base.vx=lan.p2.base.vy=0; lan.p2.hp=5; return; }
+        lan.p2.base.vx=lan.p2.base.vy=0; lan.p2.hp = PLAYER_MAX_HP; return; }
     play_sound(&sfx.hitted);
     double push=dsign(p2x-e->base.x); if(push==0) push=1;
     lan.p2.base.vx=push*c->push_force;
@@ -488,8 +513,7 @@ static inline void enemy_vs_p2(struct enemy_data* e, double p2x, double p2y){
             return;
         }
     }
-    if(HIT_BOX(p2x,p2y,cfg.player_w,cfg.player_h,ex,ey,ew,eh))
-        p2_hit_enemy(e,p2x);
+    if(HIT_BOX(p2x,p2y,cfg.player_w,cfg.player_h,ex,ey,ew,eh)){ p2_hit_enemy(e,p2x); }
 }
 
 static inline void enemy_vs_player(struct enemy_data* e,double px,double py){
@@ -500,8 +524,7 @@ static inline void enemy_vs_player(struct enemy_data* e,double px,double py){
         player.base.vy=jump_vy()*JUMP_BOUNCE_SCALE;
         return;
     }
-    if(HIT_BOX(px,py,cfg.player_w,cfg.player_h,ex,ey,ew,eh))
-        player_hit_enemy(e,px);
+    if(HIT_BOX(px,py,cfg.player_w,cfg.player_h,ex,ey,ew,eh)){ player_hit_enemy(e,px); }
 }
 
 //###############################################
@@ -511,7 +534,7 @@ void process_enemies(double dt){
     double px=player.base.x, py=player.base.y;
     /* target: nearest player (or p1 if solo) */
     double tx=px, ty=py;
-    if(lan.role==LAN_HOST&&lan.connected){
+    if(lan.role==LAN_HOST && lan.connected){
         double d1=(px-player.base.x)*(px-player.base.x)+(py-player.base.y)*(py-player.base.y);
         double p2x=lan.p2.base.x, p2y=lan.p2.base.y;
         double d2=(p2x-player.base.x)*(p2x-player.base.x)+(p2y-player.base.y)*(p2y-player.base.y);
@@ -525,16 +548,17 @@ void process_enemies(double dt){
 
         /* pick nearest player as target for this enemy */
         tx=px; ty=py;
-        if(lan.role==LAN_HOST&&lan.connected){
+        if(lan.role==LAN_HOST && lan.connected){
             double p2x=lan.p2.base.x, p2y=lan.p2.base.y;
             double d1=(px-e->base.x)*(px-e->base.x)+(py-e->base.y)*(py-e->base.y);
             double d2=(p2x-e->base.x)*(p2x-e->base.x)+(p2y-e->base.y)*(p2y-e->base.y);
             if(d2<d1){ tx=p2x; ty=p2y; }
         }
 
-        if(e->hp<=0&&!IS_BOSS(e->type)){
-            double ry=dclamp(e->base.y+REVIVE_OFFSET_Y,0.0,cfg.world_h-WORLD_EDGE_PAD);
-            if(py>ry&&py>e->base.y){
+		// respawn enemies if above player, doesnt apply to LAN game
+        if( lan.connected == 0 && e->hp <= 0 && !IS_BOSS(e->type) ){
+            double ry = dclamp(e->base.y+REVIVE_OFFSET_Y,0.0,cfg.world_h-WORLD_EDGE_PAD);
+            if(py > ry && py>e->base.y){
                 e->hp=c->max_hp; e->active=1; e->stun_timer=0;
                 e->base.x=(e->patrol_x_min+e->patrol_x_max)*0.5;
             }
@@ -593,26 +617,29 @@ void process_enemies(double dt){
             }
             break;
 
-        case ENEMY_WEATHER_BOSS:
-            if(--e->action_timer<=0)
-                e->action_timer=TPS_SCALE(c->weather_cd_base+rand()%c->weather_cd_var);
-            e->dash_vx=c->weather_dash_speed*((rand()%2)?1:-1); {
-            double dx2=px-e->base.x, dy2=py-e->base.y;
-            if(dx2*dx2+dy2*dy2<c->weather_push_range_sq)
-                player.base.vx+=e->dash_vx*c->weather_push_scale*dt;
-            if(lan.role==LAN_HOST&&lan.connected){
-                double p2x=lan.p2.base.x,p2y=lan.p2.base.y;
-                double dx3=p2x-e->base.x, dy3=p2y-e->base.y;
-                if(dx3*dx3+dy3*dy3<c->weather_push_range_sq)
-                    lan.p2.base.vx+=e->dash_vx*c->weather_push_scale*dt;
-            }
-            } break;
+		case ENEMY_WEATHER_BOSS:
+			if(--e->action_timer <= 0){
+				e->action_timer = TPS_SCALE(c->weather_cd_base + rand()%c->weather_cd_var);
+				e->dash_vx = c->weather_dash_speed * ((rand()%2) ? 1 : -1); // new dir only here
+			}
+			// rest uses current e->dash_vx, stable until timer resets
+			{
+				double dx2=px-e->base.x, dy2=py-e->base.y;
+				if(dx2*dx2+dy2*dy2 < c->weather_push_range_sq)
+					player.base.vx += e->dash_vx*c->weather_push_scale*dt;
+				if(lan.role==LAN_HOST && lan.connected){
+					double p2x=lan.p2.base.x, p2y=lan.p2.base.y;
+					double dx3=p2x-e->base.x, dy3=p2y-e->base.y;
+					if(dx3*dx3+dy3*dy3 < c->weather_push_range_sq)
+						lan.p2.base.vx += e->dash_vx*c->weather_push_scale*dt;
+				}
+			}
+			break;
         }
 
         e->base.y=e->patrol_y;
         enemy_vs_player(e,px,py);
-        if(lan.role==LAN_HOST&&lan.connected)
-            enemy_vs_p2(e,lan.p2.base.x,lan.p2.base.y);
+        if(lan.role==LAN_HOST&&lan.connected){ enemy_vs_p2(e,lan.p2.base.x,lan.p2.base.y); }
     }
 }
 

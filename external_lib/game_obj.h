@@ -268,7 +268,7 @@ void init_enemy_cfg(enemy_cfg_t* cfg){
     e->weather_cd_base = 200;
     e->weather_cd_var  = 200;
     e->weather_push_range_sq = 324.0;
-    e->weather_push_scale    = 0.35;
+    e->weather_push_scale    = 0.3;
     e->weather_dash_speed    = 20.0;
     e->col_w = 0.70; e->col_h = 0.70;
     e->dash_vx = 20.0;
@@ -382,6 +382,8 @@ struct player_data {
     double respawn_x, respawn_y;
     int    jump_boost_timer;
     int speed_boost_timer;
+    int    dash_cooldown_timer;
+	int    dash_cooldown_tick;
     int slow_timer;
     int    score;
     int    last_move_dir;

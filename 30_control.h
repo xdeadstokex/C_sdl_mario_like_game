@@ -176,7 +176,7 @@ int control(){
                     lan_disc_open(&lan);   /* start listening for host broadcasts */
                     game_state = STATE_NET_LOBBY;
                 }
-                if(gui_hit(gui.menu_exit,    mx,my)){ return 0; }
+                if(gui_hit(gui.menu_exit, mx, my)){ return 0; }
             }
         } else {
             if(kb.key_escape.click) menu_sub_state=0;
@@ -191,18 +191,26 @@ int control(){
     }
 
     // PAUSE MENU BUTTON
-    if(game_state==STATE_PAUSE && mouse.left.click){
-        if(gui_hit(gui.pause_main_menu, mouse.x, mouse.y)){
-            game_state=STATE_MENU; menu_sub_state=0;
-        }
-    }
+	if(game_state==STATE_PAUSE && mouse.left.click){
+		if(gui_hit(gui.pause_main_menu, mouse.x, mouse.y)){
+			lan_stop(&lan);
+			lan_disc_close(&lan);
+			game_state=STATE_MENU; menu_sub_state=0;
+		}
+	}
 
     // WIN SCREEN
     if(game_state == STATE_WIN){
         if(kb.key_space.click){ game_state=STATE_PLAY; reset_game(); }
         if(mouse.left.click){
-            if(gui_hit(gui.win_play_again, mouse.x, mouse.y)){ game_state=STATE_PLAY; reset_game(); }
-            if(gui_hit(gui.win_main_menu,  mouse.x, mouse.y)){ game_state=STATE_MENU; menu_sub_state=0; }
+			if(lan.connected && lan.role == LAN_HOST || !lan.connected){
+				if(gui_hit(gui.win_play_again, mouse.x, mouse.y)){ game_state = STATE_PLAY; reset_game(); }
+			}
+			if(gui_hit(gui.win_main_menu, mouse.x, mouse.y)){
+				lan_stop(&lan);
+				lan_disc_close(&lan);
+				game_state=STATE_MENU; menu_sub_state=0;
+			}
         }
         return 1;
     }
