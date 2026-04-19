@@ -402,7 +402,6 @@ static inline void lan_pack_state(lan_ctx_t* lan, net_state_t* st){
 //###############################################
 static inline void lan_unpack_state(lan_ctx_t* lan, net_state_t* st){
     game_state = st->game_state;
-	if(game_state == STATE_WIN){ printf("aasdada\n"); }
     lan_unpack_player(&st->p2, &player);
     lan_unpack_player(&st->p1, &lan->p2);
 
