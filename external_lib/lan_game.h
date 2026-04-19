@@ -40,7 +40,7 @@
 #define LAN_DEFAULT_IP         "127.0.0.1"
 #define LAN_DISCOVERY_PORT     7776   /* broadcast channel, separate from game port */
 #define LAN_ANNOUNCE_INTERVAL  30     /* ticks between announce broadcasts */
-#define LAN_HOST_TIMEOUT       180    /* ticks before a discovered host expires */
+#define LAN_HOST_TIMEOUT       600    /* ticks before a discovered host expires */
 #define LAN_MAX_DISCOVERED     8      /* max hosts shown in client list */
 
 #define LAN_OFF    0
@@ -119,6 +119,7 @@ typedef struct {
     int            sock_open;
     network_t      sock;
     char           peer_ip[32];
+	char           subnet[32];
     int            connected;
 	int            client_confirmed;  // 1 = received at least one MSG_INPUT
     int            tick;
@@ -134,6 +135,7 @@ typedef struct {
     int              disc_open;
     network_t        disc_sock;
     int              announce_timer;
+	int				 announce_slice;
     lan_host_entry_t discovered[LAN_MAX_DISCOVERED];
     int              discovered_count;
     int              selected_host;   /* -1 = none */
@@ -191,12 +193,40 @@ static inline void lan_disc_close(lan_ctx_t* lan){
     lan->selected_host = -1;
 }
 
+static inline void lan_get_subnet(lan_ctx_t* lan){
+    lan->subnet[0] = '\0';
+#ifdef _WIN32
+    FILE* f = popen("ipconfig", "r");
+#else
+    FILE* f = popen("ip a", "r");
+#endif
+    if(!f) return;
+    char line[256];
+    while(fgets(line, sizeof(line), f)){
+        char* p = strstr(line, "192.168.");
+        if(!p) continue;
+        char ip[32]; int i=0;
+        while(p[i] && (isdigit((unsigned char)p[i]) || p[i]=='.') && i<31)
+            ip[i]=p[i], i++;
+        ip[i]='\0';
+        if(strstr(ip, "255")) continue; // skip subnet masks
+        char* last = strrchr(ip, '.');
+        if(!last) continue;
+        *last = '\0';
+        strncpy(lan->subnet, ip, 31);
+        printf("[LAN] detected subnet: %s\n", lan->subnet);
+        break;
+    }
+    pclose(f);
+}
+
 static inline void lan_start_host(lan_ctx_t* lan){
     if(lan->sock_open) return;
     int p = atoi(lan->ui_port);
     lan->host_port = (p > 0 && p < 65536) ? (unsigned short)p : LAN_DEFAULT_HOST_PORT;
     net_init(&lan->sock, lan->host_port, 0);
     lan->sock_open = 1;
+    lan_get_subnet(lan);
     lan->announce_timer = 0;
     snprintf(lan->status_msg, 64, "Hosting :%d — waiting for client...", lan->host_port);
     printf("[LAN] Host on port %d\n", lan->host_port);
@@ -222,7 +252,7 @@ static inline void lan_start_client(lan_ctx_t* lan){
 static inline void lan_broadcast_announce(lan_ctx_t* lan){
     if(!lan->sock_open) return;
     if(--lan->announce_timer > 0) return;
-    lan->announce_timer = LAN_ANNOUNCE_INTERVAL;
+    lan->announce_timer = 1;
 
     net_announce_t pkt;
     pkt.msg = MSG_ANNOUNCE;
@@ -230,13 +260,11 @@ static inline void lan_broadcast_announce(lan_ctx_t* lan){
     strncpy(pkt.name, "HOST", 15); pkt.name[15] = '\0';
 
     char ip[32];
-
-    for(int a = 0; a < 256; a++){
-        for(int b = 1; b < 255; b++){
-            snprintf(ip, sizeof(ip), "192.168.%d.%d", a, b);
-            net_send(&lan->sock, ip, LAN_DISCOVERY_PORT, &pkt, sizeof(pkt));
-        }
+    if(lan->subnet[0]){
+        snprintf(ip, sizeof(ip), "%s.%d", lan->subnet, lan->announce_slice + 1);
+        net_send(&lan->sock, ip, LAN_DISCOVERY_PORT, &pkt, sizeof(pkt));
     }
+    lan->announce_slice = (lan->announce_slice + 1) % 254;
 }
 
 /* Client: drain discovery socket, update discovered list */
@@ -259,6 +287,7 @@ static inline void lan_disc_poll(lan_ctx_t* lan){
     static unsigned char buf[64];
     char from_ip[32]; int n;
     while((n = net_recv(&lan->disc_sock, buf, sizeof(buf), from_ip)) > 0){
+		printf("[CLIENT] got %d bytes from %s\n", n, from_ip);
         if(n < (int)sizeof(net_announce_t)) continue;
         net_announce_t* pkt = (net_announce_t*)buf;
         if(pkt->msg != MSG_ANNOUNCE) continue;
@@ -402,6 +431,7 @@ static inline void lan_pack_state(lan_ctx_t* lan, net_state_t* st){
 //###############################################
 static inline void lan_unpack_state(lan_ctx_t* lan, net_state_t* st){
     game_state = st->game_state;
+	if(game_state == STATE_WIN){ printf("aasdada\n"); }
     lan_unpack_player(&st->p2, &player);
     lan_unpack_player(&st->p1, &lan->p2);
 
@@ -512,6 +542,9 @@ static inline void lan_host_tick(lan_ctx_t* lan){
             memcpy(&lan->last_input, buf, sizeof(net_input_t));
             lan_apply_input_to_p2(lan);
         }
+		if(buf[0] == MSG_ACK && lan->connected){
+			lan->client_confirmed = 1;
+		}
     }
 
     if(lan->connected && game_state == STATE_PLAY || game_state == STATE_WIN){
@@ -525,9 +558,7 @@ static inline void lan_host_tick(lan_ctx_t* lan){
 		return;
     }
 
-	if(buf[0] == MSG_ACK && lan->connected){
-		lan->client_confirmed = 1;
-	}
+
 }
 
 //###############################################
@@ -552,15 +583,17 @@ static inline void lan_client_tick(lan_ctx_t* lan){
     while((n = net_recv(&lan->sock, buf, sizeof(buf), from_ip)) > 0){
         if(buf[0] == MSG_START && !lan->connected){
             lan->connected = 1;
-			// send ack confirm
 			
+			strncpy(lan->peer_ip, from_ip, 31);
+            lan->peer_ip[31] = '\0';
+			
+			// send ack confirm
 			unsigned char ack[2] = {MSG_ACK, 0};
 			for(int a = 0; a < 10; a += 1){
-			net_send(&lan->sock, lan->peer_ip, lan->host_port, ack, 2);
+				net_send(&lan->sock, lan->peer_ip, lan->host_port, ack, 2);
 			}
 			
-            strncpy(lan->peer_ip, from_ip, 31);
-            lan->peer_ip[31] = '\0';
+
             snprintf(lan->status_msg, 64, "Connected to %s — starting!", lan->peer_ip);
             printf("[LAN] MSG_START received, entering game\n");
             game_state = STATE_PLAY;

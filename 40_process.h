@@ -20,6 +20,7 @@ void process(){
     // -----------------------------------------------
     if(lan.role == LAN_CLIENT){
         if(game_state == STATE_NET_LOBBY || game_state == STATE_PLAY || game_state == STATE_WIN){ lan_client_tick(&lan); }
+		if(game_state == STATE_NET_LOBBY){ lan_disc_poll(&lan); }
         if(game_state == STATE_PLAY)
             process_camera(dt);   // client drives its own camera (player = client's char after unpack)
         render_flag=1;

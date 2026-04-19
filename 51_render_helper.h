@@ -572,8 +572,6 @@ static inline void lan_draw_lobby(lan_ctx_t* lan){
 
     /* CLIENT: poll discovery and draw visible host list */
     if(lan->role == LAN_CLIENT && !lan->sock_open){
-        lan_disc_poll(lan);
-
         draw_btn(gui.disc_title);
 
         if(lan->discovered_count == 0){
