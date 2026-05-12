@@ -15,6 +15,10 @@ Controls:
   I / O       zoom in / out (+/-10 px_per_m), snaps camera instantly
 ```
 
+# DEMO VIDEO
+[![Watch the video](https://img.youtube.com/vi/PEIy4HR0pNE/0.jpg)](https://www.youtube.com/watch?v=PEIy4HR0pNE)
+
+
 DEPENDENCY
 
 ```txt
